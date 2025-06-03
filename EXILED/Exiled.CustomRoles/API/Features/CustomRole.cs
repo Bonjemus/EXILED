@@ -42,11 +42,11 @@ namespace Exiled.CustomRoles.API.Features
         /// </summary>
         public const float AddRoleItemAndAmmoDelay = 0.25f;
 
-        private static Dictionary<Type, CustomRole?> typeLookupTable = new();
+        private static readonly Dictionary<Type, CustomRole?> TypeLookupTable = new();
 
-        private static Dictionary<string, CustomRole?> stringLookupTable = new();
+        private static readonly Dictionary<string, CustomRole?> StringLookupTable = new();
 
-        private static Dictionary<uint, CustomRole?> idLookupTable = new();
+        private static readonly Dictionary<uint, CustomRole?> IdLookupTable = new();
 
         /// <summary>
         /// Gets a list of all registered custom roles.
@@ -186,9 +186,9 @@ namespace Exiled.CustomRoles.API.Features
         /// <returns>The role, or <see langword="null"/> if it doesn't exist.</returns>
         public static CustomRole? Get(uint id)
         {
-            if (!idLookupTable.ContainsKey(id))
-                idLookupTable.Add(id, Registered?.FirstOrDefault(r => r.Id == id));
-            return idLookupTable[id];
+            if (!IdLookupTable.ContainsKey(id))
+                IdLookupTable.Add(id, Registered?.FirstOrDefault(r => r.Id == id));
+            return IdLookupTable[id];
         }
 
         /// <summary>
@@ -198,9 +198,9 @@ namespace Exiled.CustomRoles.API.Features
         /// <returns>The role, or <see langword="null"/> if it doesn't exist.</returns>
         public static CustomRole? Get(Type t)
         {
-            if (!typeLookupTable.ContainsKey(t))
-                typeLookupTable.Add(t, Registered?.FirstOrDefault(r => r.GetType() == t));
-            return typeLookupTable[t];
+            if (!TypeLookupTable.ContainsKey(t))
+                TypeLookupTable.Add(t, Registered?.FirstOrDefault(r => r.GetType() == t));
+            return TypeLookupTable[t];
         }
 
         /// <summary>
@@ -210,9 +210,9 @@ namespace Exiled.CustomRoles.API.Features
         /// <returns>The role, or <see langword="null"/> if it doesn't exist.</returns>
         public static CustomRole? Get(string name)
         {
-            if (!stringLookupTable.ContainsKey(name))
-                stringLookupTable.Add(name, Registered?.FirstOrDefault(r => r.Name == name));
-            return stringLookupTable[name];
+            if (!StringLookupTable.ContainsKey(name))
+                StringLookupTable.Add(name, Registered?.FirstOrDefault(r => r.Name == name));
+            return StringLookupTable[name];
         }
 
         /// <summary>
@@ -484,9 +484,9 @@ namespace Exiled.CustomRoles.API.Features
         /// </summary>
         public virtual void Init()
         {
-            idLookupTable.Add(Id, this);
-            typeLookupTable.Add(GetType(), this);
-            stringLookupTable.Add(Name, this);
+            IdLookupTable.Add(Id, this);
+            TypeLookupTable.Add(GetType(), this);
+            StringLookupTable.Add(Name, this);
             SubscribeEvents();
         }
 
@@ -495,9 +495,9 @@ namespace Exiled.CustomRoles.API.Features
         /// </summary>
         public virtual void Destroy()
         {
-            idLookupTable.Remove(Id);
-            typeLookupTable.Remove(GetType());
-            stringLookupTable.Remove(Name);
+            IdLookupTable.Remove(Id);
+            TypeLookupTable.Remove(GetType());
+            StringLookupTable.Remove(Name);
             UnsubscribeEvents();
         }
 
@@ -623,19 +623,17 @@ namespace Exiled.CustomRoles.API.Features
         /// <param name="roleSpawnFlags">The <see cref="RoleSpawnFlags"/> to apply.</param>
         public virtual void RemoveRole(Player player, SpawnReason spawnReason = SpawnReason.ForceClass, RoleSpawnFlags roleSpawnFlags = RoleSpawnFlags.All)
         {
-            if (!TrackedPlayers.Contains(player))
+            if (!TrackedPlayers.Remove(player))
                 return;
+
             Log.Debug($"{Name}: Removing role from {player.Nickname}");
-            TrackedPlayers.Remove(player);
             player.CustomInfo = string.Empty;
             player.InfoArea |= PlayerInfoArea.Role | PlayerInfoArea.Nickname;
             player.Scale = Vector3.one;
             if (CustomAbilities is not null)
             {
                 foreach (CustomAbility ability in CustomAbilities)
-                {
                     ability.RemoveAbility(player);
-                }
             }
 
             RoleRemoved(player, spawnReason, roleSpawnFlags);
@@ -651,26 +649,13 @@ namespace Exiled.CustomRoles.API.Features
         /// </summary>
         /// <param name="roleToAdd"> Role to add. </param>
         /// <param name="ffMult"> Friendly fire multiplier. </param>
-        public void SetFriendlyFire(RoleTypeId roleToAdd, float ffMult)
-        {
-            if (CustomRoleFFMultiplier.ContainsKey(roleToAdd))
-            {
-                CustomRoleFFMultiplier[roleToAdd] = ffMult;
-            }
-            else
-            {
-                CustomRoleFFMultiplier.Add(roleToAdd, ffMult);
-            }
-        }
+        public void SetFriendlyFire(RoleTypeId roleToAdd, float ffMult) => CustomRoleFFMultiplier[roleToAdd] = ffMult;
 
         /// <summary>
         /// Wrapper to call <see cref="SetFriendlyFire(RoleTypeId, float)"/>.
         /// </summary>
         /// <param name="roleFF"> Role with FF to add even if it exists. </param>
-        public void SetFriendlyFire(KeyValuePair<RoleTypeId, float> roleFF)
-        {
-            SetFriendlyFire(roleFF.Key, roleFF.Value);
-        }
+        public void SetFriendlyFire(KeyValuePair<RoleTypeId, float> roleFF) => SetFriendlyFire(roleFF.Key, roleFF.Value);
 
         /// <summary>
         /// Tries to add <see cref="RoleTypeId"/> to CustomRole FriendlyFire rules.
@@ -681,9 +666,7 @@ namespace Exiled.CustomRoles.API.Features
         public bool TryAddFriendlyFire(RoleTypeId roleToAdd, float ffMult)
         {
             if (CustomRoleFFMultiplier.ContainsKey(roleToAdd))
-            {
                 return false;
-            }
 
             CustomRoleFFMultiplier.Add(roleToAdd, ffMult);
             return true;
@@ -729,9 +712,7 @@ namespace Exiled.CustomRoles.API.Features
             if (!overwrite)
             {
                 foreach (KeyValuePair<RoleTypeId, float> roleFF in temporaryFriendlyFireRules)
-                {
                     TryAddFriendlyFire(roleFF);
-                }
             }
 
             DictionaryPool<RoleTypeId, float>.Pool.Return(temporaryFriendlyFireRules);
