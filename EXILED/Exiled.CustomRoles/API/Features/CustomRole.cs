@@ -619,6 +619,12 @@ namespace Exiled.CustomRoles.API.Features
         /// Removes the role from a specific player and FF rules.
         /// </summary>
         /// <param name="player">The <see cref="Player"/> to remove the role from.</param>
+        public virtual void RemoveRole(Player player) => RemoveRole(player, SpawnReason.ForceClass, RoleSpawnFlags.All);
+
+        /// <summary>
+        /// Removes the role from a specific player and FF rules.
+        /// </summary>
+        /// <param name="player">The <see cref="Player"/> to remove the role from.</param>
         /// <param name="spawnReason">The <see cref="SpawnReason"/>.</param>
         /// <param name="roleSpawnFlags">The <see cref="RoleSpawnFlags"/> to apply.</param>
         public virtual void RemoveRole(Player player, SpawnReason spawnReason = SpawnReason.ForceClass, RoleSpawnFlags roleSpawnFlags = RoleSpawnFlags.All)
@@ -948,7 +954,7 @@ namespace Exiled.CustomRoles.API.Features
         private void OnInternalSpawned(SpawnedEventArgs ev)
         {
             if (!IgnoreSpawnSystem && SpawnChance > 0 && !Check(ev.Player) && ev.Player.Role.Type == Role && Loader.Random.NextDouble() * 100 <= SpawnChance)
-                AddRole(ev.Player);
+                AddRole(ev.Player, ev.Reason, false);
         }
 
         private void OnInternalChangingRole(ChangingRoleEventArgs ev)
