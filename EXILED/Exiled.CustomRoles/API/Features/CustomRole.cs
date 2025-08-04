@@ -486,7 +486,7 @@ namespace Exiled.CustomRoles.API.Features
         /// </summary>
         /// <param name="player">The <see cref="Player"/> to check.</param>
         /// <returns>True if the player has this role.</returns>
-        public virtual bool Check(Player? player) => player is not null && TrackedPlayers.Contains(player);
+        public virtual bool Check(Player? player) => player is not null && player.CustomRoleIds.Contains(Id);
 
         /// <summary>
         /// Initializes this role manager.
@@ -530,7 +530,6 @@ namespace Exiled.CustomRoles.API.Features
             player.UniqueRole = Name;
 
             player.CustomRoleIds.Add(Id);
-            TrackedPlayers.Add(player);
 
             RoleSpawnFlags keptSpawnFlags = overrideSpawnFlags;
 
@@ -552,6 +551,7 @@ namespace Exiled.CustomRoles.API.Features
             }
 
             player.UniqueRole = Name;
+            TrackedPlayers.Add(player);
 
             if (keptSpawnFlags.HasFlag(RoleSpawnFlags.AssignInventory))
             {
