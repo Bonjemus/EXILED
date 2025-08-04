@@ -94,6 +94,8 @@ namespace Exiled.CustomItems.API.Features
                 pickup.PreviousOwner = previousOwner;
 
             TrackedSerials.Add(pickup.Serial);
+            SerialLookupTable[pickup.Serial] = this;
+
             return pickup;
         }
 
@@ -116,6 +118,8 @@ namespace Exiled.CustomItems.API.Features
                     pickup.PreviousOwner = previousOwner;
 
                 TrackedSerials.Add(pickup.Serial);
+                SerialLookupTable[pickup.Serial] = this;
+
                 return pickup;
             }
 
@@ -138,6 +142,7 @@ namespace Exiled.CustomItems.API.Features
 
             Log.Debug($"{nameof(Give)}: Adding {item.Serial} to tracker.");
             TrackedSerials.Add(item.Serial);
+            SerialLookupTable[item.Serial] = this;
 
             OnAcquired(player, item, displayMessage);
         }
