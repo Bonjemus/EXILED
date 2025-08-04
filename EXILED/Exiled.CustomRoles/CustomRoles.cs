@@ -25,8 +25,7 @@ namespace Exiled.CustomRoles
     /// </summary>
     public class CustomRoles : Plugin<Config>
     {
-        private PlayerHandlers? playerHandlers;
-        private KeypressActivator? keypressActivator;
+        private PlayerHandler? playerHandlers;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="CustomRoles"/> class.
@@ -58,27 +57,21 @@ namespace Exiled.CustomRoles
         public override void OnEnabled()
         {
             Instance = this;
-            playerHandlers = new PlayerHandlers(this);
+            playerHandlers = new PlayerHandler(this);
 
             if (Config.UseKeypressActivation)
-                keypressActivator = new();
+                KeypressActivator.Enable();
 
-            Exiled.Events.Handlers.Player.Spawned += playerHandlers.OnSpawned;
-            Exiled.Events.Handlers.Player.SpawningRagdoll += playerHandlers.OnSpawningRagdoll;
-
-            Exiled.Events.Handlers.Server.WaitingForPlayers += playerHandlers.OnWaitingForPlayers;
+            playerHandlers.Register();
             base.OnEnabled();
         }
 
         /// <inheritdoc/>
         public override void OnDisabled()
         {
-            Exiled.Events.Handlers.Player.Spawned -= playerHandlers!.OnSpawned;
-            Exiled.Events.Handlers.Player.SpawningRagdoll -= playerHandlers!.OnSpawningRagdoll;
+            playerHandlers!.Unregister();
 
-            Exiled.Events.Handlers.Server.WaitingForPlayers -= playerHandlers!.OnWaitingForPlayers;
-
-            keypressActivator = null;
+            KeypressActivator.Disable();
             base.OnDisabled();
         }
     }
