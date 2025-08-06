@@ -529,8 +529,6 @@ namespace Exiled.CustomRoles.API.Features
             Log.Debug($"{Name}: Adding role to {player.Nickname}.");
             player.UniqueRole = Name;
 
-            player.CustomRoleIds.Add(Id);
-
             RoleSpawnFlags keptSpawnFlags = overrideSpawnFlags;
 
             if (Role == RoleTypeId.None)
@@ -552,6 +550,7 @@ namespace Exiled.CustomRoles.API.Features
 
             player.UniqueRole = Name;
             TrackedPlayers.Add(player);
+            player.CustomRoleIds.Add(Id);
 
             if (keptSpawnFlags.HasFlag(RoleSpawnFlags.AssignInventory))
             {
