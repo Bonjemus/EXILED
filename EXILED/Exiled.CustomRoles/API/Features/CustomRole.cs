@@ -17,6 +17,7 @@ namespace Exiled.CustomRoles.API.Features
     using Exiled.API.Extensions;
     using Exiled.API.Features;
     using Exiled.API.Features.Attributes;
+    using Exiled.API.Features.Items;
     using Exiled.API.Features.Pools;
     using Exiled.API.Features.Roles;
     using Exiled.API.Features.Spawn;
@@ -39,7 +40,10 @@ namespace Exiled.CustomRoles.API.Features
     {
         private const float AddRoleItemAndAmmoDelay = 0.25f;
 
-        private static readonly Dictionary<Type, CustomRole?> TypeLookupTable = new();
+        // used in AddRole and InternalChangingRole
+        private static bool skipChangingCheck;
+
+        private static Dictionary<Type, CustomRole?> typeLookupTable = new();
 
         private static readonly Dictionary<string, CustomRole?> StringLookupTable = new();
 
@@ -988,8 +992,10 @@ namespace Exiled.CustomRoles.API.Features
 
         private void OnInternalChangingRole(ChangingRoleEventArgs ev)
         {
-            if (ev.IsAllowed && ev.Reason != SpawnReason.Destroyed && Check(ev.Player) && ((ev.NewRole == RoleTypeId.Spectator && !KeepRoleOnDeath) || (ev.NewRole != RoleTypeId.Spectator && !KeepRoleOnChangingRole)))
+            if (!skipChangingCheck && ev.IsAllowed && ev.Reason != SpawnReason.Destroyed && Check(ev.Player) && ((ev.NewRole == RoleTypeId.Spectator && !KeepRoleOnDeath) || (ev.NewRole != RoleTypeId.Spectator && !KeepRoleOnChangingRole)))
                 RemoveRole(ev.Player);
+            else
+                skipChangingCheck = false;
         }
 
         private void OnSpawningRagdoll(SpawningRagdollEventArgs ev)
