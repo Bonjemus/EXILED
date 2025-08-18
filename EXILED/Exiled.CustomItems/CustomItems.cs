@@ -19,7 +19,7 @@ namespace Exiled.CustomItems
     /// </summary>
     public class CustomItems : Plugin<Config>
     {
-        private MapHandler? roundHandler;
+        private MapHandler? mapHandler;
         private PlayerHandler? playerHandler;
         private Harmony? harmony;
 
@@ -32,12 +32,11 @@ namespace Exiled.CustomItems
         public override void OnEnabled()
         {
             Instance = this;
-            roundHandler = new MapHandler();
+            mapHandler = new MapHandler();
             playerHandler = new PlayerHandler();
 
-            Exiled.Events.Handlers.Server.WaitingForPlayers += roundHandler.OnWaitingForPlayers;
-
-            Exiled.Events.Handlers.Player.ChangingItem += playerHandler.OnChangingItem;
+            mapHandler.Register();
+            playerHandler.Register();
 
             harmony = new Harmony($"com.{nameof(CustomItems)}.ExiledTeam-{DateTime.Now.Ticks}");
             GlobalPatchProcessor.PatchAll(harmony, out int failedPatch);
@@ -50,9 +49,8 @@ namespace Exiled.CustomItems
         /// <inheritdoc />
         public override void OnDisabled()
         {
-            Exiled.Events.Handlers.Server.WaitingForPlayers -= roundHandler!.OnWaitingForPlayers;
-
-            Exiled.Events.Handlers.Player.ChangingItem -= playerHandler!.OnChangingItem;
+            mapHandler?.Unregister();
+            playerHandler?.Unregister();
 
             harmony?.UnpatchAll();
 
