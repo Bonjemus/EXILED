@@ -72,7 +72,7 @@ namespace Exiled.CustomRoles.Commands
                     {
                         Player player = Player.Get(playerCommandSender);
 
-                        role.AddRole(player);
+                        role.AddRole(player, Exiled.API.Enums.SpawnReason.ForceClass);
                         response = $"{role.Name} given to {player.Nickname}.";
                         return true;
                     }
@@ -90,7 +90,7 @@ namespace Exiled.CustomRoles.Commands
                         List<Player> players = ListPool<Player>.Pool.Get(Player.List);
 
                         foreach (Player player in players)
-                            role.AddRole(player);
+                            role.AddRole(player, Exiled.API.Enums.SpawnReason.ForceClass);
 
                         response = $"Custom role {role.Name} given to all players.";
                         ListPool<Player>.Pool.Return(players);
@@ -107,7 +107,7 @@ namespace Exiled.CustomRoles.Commands
                 }
 
                 foreach (Player player in list)
-                    role.AddRole(player);
+                    role.AddRole(player, Exiled.API.Enums.SpawnReason.ForceClass);
 
                 response = $"Customrole {role.Name} given to {list.Count()} players!";
 
