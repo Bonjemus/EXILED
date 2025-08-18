@@ -8,14 +8,12 @@
 namespace Exiled.API.Features.Toys
 {
     using System.Collections.Generic;
-    using System.Linq;
 
     using AdminToys;
 
     using Enums;
     using Exiled.API.Interfaces;
     using Footprinting;
-    using InventorySystem.Items;
     using Mirror;
 
     using UnityEngine;
@@ -110,6 +108,13 @@ namespace Exiled.API.Features.Toys
             get => AdminToyBase.transform.localScale;
             set
             {
+                // TODO: Remove this part of code when NW will have fix the issue
+                if (this is Waypoint)
+                {
+                    if (value.x != value.y || value.y != value.z || value.sqrMagnitude >= Vector3.one.sqrMagnitude)
+                        Log.Warn("NW WaypointToy have error when Scale is bigger than one or than x y z are not the same");
+                }
+
                 AdminToyBase.transform.localScale = value;
                 AdminToyBase.NetworkScale = value;
             }
@@ -170,7 +175,8 @@ namespace Exiled.API.Features.Toys
                 Scp079CameraToy scp079CameraToy => new CameraToy(scp079CameraToy),
                 InvisibleInteractableToy invisibleInteractableToy => new InteractableToy(invisibleInteractableToy),
                 TextToy textToy => new Text(textToy),
-                _ => throw new System.NotImplementedException()
+                WaypointToy waypointToy => new Waypoint(waypointToy),
+                _ => throw new System.NotImplementedException(),
             };
         }
 
