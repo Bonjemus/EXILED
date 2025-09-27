@@ -1159,6 +1159,15 @@ namespace Exiled.API.Features
         public bool AgreedToRecording => VoiceChatPrivacySettings.CheckUserFlags(ReferenceHub, VcPrivacyFlags.SettingsSelected | VcPrivacyFlags.AllowRecording | VcPrivacyFlags.AllowMicCapture);
 
         /// <summary>
+        /// Gets or sets a value indicating whether the player can be spectated by a spectator.
+        /// </summary>
+        public bool IsSpectatable
+        {
+            get => !SpectatableVisibilityManager.IsHidden(ReferenceHub);
+            set => SpectatableVisibilityManager.SetHidden(ReferenceHub, !value);
+        }
+
+        /// <summary>
         /// Gets a <see cref="Player"/> <see cref="IEnumerable{T}"/> of spectators that are currently spectating this <see cref="Player"/>.
         /// </summary>
         public IEnumerable<Player> CurrentSpectatingPlayers => List.Where(player => ReferenceHub.IsSpectatedBy(player.ReferenceHub));
@@ -1210,7 +1219,7 @@ namespace Exiled.API.Features
         /// </summary>
         /// <param name="player">The LabApi player.</param>
         /// <returns>EXILED player.</returns>
-        public static implicit operator LabApi.Features.Wrappers.Player(Player player) => LabApi.Features.Wrappers.Player.Get(player.ReferenceHub);
+        public static implicit operator LabApi.Features.Wrappers.Player(Player player) => LabApi.Features.Wrappers.Player.Get(player?.ReferenceHub);
 
         /// <summary>
         /// Gets a <see cref="Player"/> <see cref="IEnumerable{T}"/> filtered by side. Can be empty.
@@ -3634,6 +3643,7 @@ namespace Exiled.API.Features
             this.PlayGunSound(Position, itemType, pitch, clipIndex);
 
         /// <inheritdoc cref="Map.PlaceBlood(Vector3, Vector3)"/>
+        [Obsolete("Use PlaceBlood(this Player, Vector3, Vector3, RoleTypeId, int) instead.")]
         public void PlaceBlood(Vector3 direction) => Map.PlaceBlood(Position, direction);
 
         /// <inheritdoc cref="Map.GetNearCameras(Vector3, float)"/>
