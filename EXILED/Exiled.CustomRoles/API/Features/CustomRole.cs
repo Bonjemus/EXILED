@@ -17,7 +17,6 @@ namespace Exiled.CustomRoles.API.Features
     using Exiled.API.Extensions;
     using Exiled.API.Features;
     using Exiled.API.Features.Attributes;
-    using Exiled.API.Features.Items;
     using Exiled.API.Features.Pools;
     using Exiled.API.Features.Roles;
     using Exiled.API.Features.Spawn;
@@ -40,14 +39,14 @@ namespace Exiled.CustomRoles.API.Features
     {
         private const float AddRoleItemAndAmmoDelay = 0.25f;
 
-        // used in AddRole and InternalChangingRole
-        private static bool skipChangingCheck;
-
-        private static Dictionary<Type, CustomRole?> typeLookupTable = new();
+        private static readonly Dictionary<Type, CustomRole?> TypeLookupTable = new();
 
         private static readonly Dictionary<string, CustomRole?> StringLookupTable = new();
 
         private static readonly Dictionary<uint, CustomRole?> IdLookupTable = new();
+
+        // used in AddRole and InternalChangingRole
+        private static bool skipChangingCheck;
 
         /// <summary>
         /// Gets a list of all registered custom roles.
