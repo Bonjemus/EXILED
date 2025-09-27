@@ -29,7 +29,7 @@ namespace Exiled.Events.Patches.Fixes
     /// Fix Throwing a ghostlight with Scp in the room stun 079.
     /// Bug reported to NW (https://git.scpslgame.com/northwood-qa/scpsl-bug-reporting/-/issues/55).
     /// </summary>
-    // [HarmonyPatch(typeof(Scp2176Projectile), nameof(Scp2176Projectile.ServerShatter))]
+    [HarmonyPatch(typeof(Scp2176Projectile), nameof(Scp2176Projectile.ServerShatter))]
     internal class Scp3114FriendlyFireFix
     {
         private static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions, ILGenerator generator)
@@ -38,10 +38,10 @@ namespace Exiled.Events.Patches.Fixes
 
             Label cnt = generator.DefineLabel();
 
-            int offset = 0;
-            int index = newInstructions.FindIndex(x => x.LoadsField(Field(typeof(RoomLightController), nameof(RoomLightController.Instances)))) + offset;
+            int offset = 4;
+            int index = newInstructions.FindIndex(x => x.opcode == OpCodes.Ldsfld) + offset;
 
-            Label skip = newInstructions[index].labels[0];
+            Label skip = (Label)newInstructions[index].operand;
 
             offset = -4;
             index += offset;
@@ -57,8 +57,6 @@ namespace Exiled.Events.Patches.Fixes
                 new(OpCodes.Ceq),
 
                 new(OpCodes.Brfalse_S, cnt),
-
-                new(OpCodes.Pop),
                 new(OpCodes.Br_S, skip),
 
                 new CodeInstruction(OpCodes.Nop).WithLabels(cnt),

@@ -120,6 +120,7 @@ namespace Exiled.API.Features
             ["TUNNEL ENTRANCE"] = CameraType.TunnelEntrance,
 
             // new
+            ["HCZ CURVE"] = CameraType.HczCurve,
             ["JUNK MAIN"] = CameraType.HczJunkMain,
             ["JUNK HALLWAY"] = CameraType.HczJunkHallway,
             ["CORNER DEEP"] = CameraType.HczCornerDeep,
@@ -158,6 +159,8 @@ namespace Exiled.API.Features
             Base = camera079;
             Camera079ToCamera.Add(camera079, this);
             Type = GetCameraType();
+            if (Base != null && Type is CameraType.Unknown)
+                Log.Error($"[CameraType] Room: {Room?.Type ?? RoomType.Unknown} Name:{Name}");
         }
 
         /// <summary>

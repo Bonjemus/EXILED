@@ -17,6 +17,7 @@ namespace Exiled.API.Features
     using Exiled.API.Features.Pickups;
     using Exiled.API.Interfaces;
     using MapGeneration;
+    using MapGeneration.Rooms;
     using MEC;
     using Mirror;
     using PlayerRoles.PlayableScps.Scp079;
@@ -75,6 +76,12 @@ namespace Exiled.API.Features
         /// <remarks>This property is the internal <see cref="MapGeneration.RoomName"/> of the room. For the actual string of the Room's name, see <see cref="Name"/>.</remarks>
         /// <seealso cref="Name"/>
         public RoomName RoomName => Identifier.Name;
+
+        /// <summary>
+        /// Gets the room's <see cref="MapGeneration.RoomShape"/>.
+        /// </summary>
+        /// <remarks>Will return null if the Room is not a <see cref="MultiLevelRoomIdentifier"/>.</remarks>
+        public RoomLevelName? LevelName => Identifier is MultiLevelRoomIdentifier multiLevelRoomIdentifier ? (RoomLevelName?)multiLevelRoomIdentifier.Name : null;
 
         /// <summary>
         /// Gets the room's <see cref="MapGeneration.RoomShape"/>.

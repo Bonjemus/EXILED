@@ -25,32 +25,32 @@ namespace Exiled.CustomRoles.API.Features
     /// <summary>
     /// Control class for keypress ability actions.
     /// </summary>
-    internal class KeypressActivator
+    internal static class KeypressActivator
     {
-        private readonly Dictionary<Player, int> altTracker = DictionaryPool<Player, int>.Pool.Get();
-        private readonly Dictionary<Player, CoroutineHandle> coroutineTracker = DictionaryPool<Player, CoroutineHandle>.Pool.Get();
+        private static readonly Dictionary<Player, int> AltTracker = DictionaryPool<Player, int>.Pool.Get();
+        private static readonly Dictionary<Player, CoroutineHandle> CoroutineTracker = DictionaryPool<Player, CoroutineHandle>.Pool.Get();
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="KeypressActivator"/> class.
+        /// Enables the keypress abilities.
         /// </summary>
-        internal KeypressActivator()
+        internal static void Enable()
         {
             Exiled.Events.Handlers.Player.TogglingNoClip += OnTogglingNoClip;
             Exiled.Events.Handlers.Server.EndingRound += OnEndingRound;
         }
 
         /// <summary>
-        /// Finalizes an instance of the <see cref="KeypressActivator"/> class.
+        /// Disables the keypress abilities.
         /// </summary>
-        ~KeypressActivator()
+        internal static void Disable()
         {
             Exiled.Events.Handlers.Player.TogglingNoClip -= OnTogglingNoClip;
             Exiled.Events.Handlers.Server.EndingRound -= OnEndingRound;
-            DictionaryPool<Player, int>.Pool.Return(altTracker);
-            DictionaryPool<Player, CoroutineHandle>.Pool.Return(coroutineTracker);
+            DictionaryPool<Player, int>.Pool.Return(AltTracker);
+            DictionaryPool<Player, CoroutineHandle>.Pool.Return(CoroutineTracker);
         }
 
-        private void OnTogglingNoClip(TogglingNoClipEventArgs ev)
+        private static void OnTogglingNoClip(TogglingNoClipEventArgs ev)
         {
             if (ev.Player.IsNoclipPermitted)
                 return;
@@ -58,31 +58,31 @@ namespace Exiled.CustomRoles.API.Features
             if (!ActiveAbility.AllActiveAbilities.ContainsKey(ev.Player))
                 return;
 
-            if (!altTracker.ContainsKey(ev.Player))
-                altTracker.Add(ev.Player, 0);
+            if (!AltTracker.ContainsKey(ev.Player))
+                AltTracker.Add(ev.Player, 0);
 
-            altTracker[ev.Player]++;
+            AltTracker[ev.Player]++;
 
-            if (!coroutineTracker.ContainsKey(ev.Player))
-                coroutineTracker.Add(ev.Player, default);
+            if (!CoroutineTracker.ContainsKey(ev.Player))
+                CoroutineTracker.Add(ev.Player, default);
 
-            if (!coroutineTracker[ev.Player].IsRunning)
-                coroutineTracker[ev.Player] = Timing.RunCoroutine(ProcessAltKey(ev.Player));
+            if (!CoroutineTracker[ev.Player].IsRunning)
+                CoroutineTracker[ev.Player] = Timing.RunCoroutine(ProcessAltKey(ev.Player));
         }
 
-        private void OnEndingRound(EndingRoundEventArgs ev)
+        private static void OnEndingRound(EndingRoundEventArgs ev)
         {
-            altTracker.Clear();
-            foreach (CoroutineHandle handle in coroutineTracker.Values)
+            AltTracker.Clear();
+            foreach (CoroutineHandle handle in CoroutineTracker.Values)
                 Timing.KillCoroutines(handle);
-            coroutineTracker.Clear();
+            CoroutineTracker.Clear();
         }
 
-        private IEnumerator<float> ProcessAltKey(Player player)
+        private static IEnumerator<float> ProcessAltKey(Player player)
         {
             yield return Timing.WaitForSeconds(0.25f);
 
-            if (!altTracker.TryGetValue(player, out int pressCount))
+            if (!AltTracker.TryGetValue(player, out int pressCount))
                 yield break;
 
             Log.Debug($"{player.Nickname}: {pressCount} {(player.Role is FpcRole fpc ? fpc.MoveState : false)}");
@@ -118,10 +118,10 @@ namespace Exiled.CustomRoles.API.Features
             };
 
             player.ShowHint(response, dur);
-            altTracker[player] = 0;
+            AltTracker[player] = 0;
         }
 
-        private bool PreformAction(Player player, AbilityKeypressTriggerType type, out string response)
+        private static bool PreformAction(Player player, AbilityKeypressTriggerType type, out string response)
         {
             ActiveAbility? selected = player.GetSelectedAbility();
             if (type == AbilityKeypressTriggerType.Activate)
