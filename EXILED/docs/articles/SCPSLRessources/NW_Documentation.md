@@ -17,7 +17,7 @@
 title: NW Documentation
 ---
 
-Last Update (14.1.0.1)
+Last Update (14.1.0.4)
 
 ### Index
 
@@ -28,6 +28,7 @@ Last Update (14.1.0.1)
 - [ActionName](#actionname)
 - [Activity](#activity)
 - [AdminFlags](#adminflags)
+- [AnimationQuality](#animationquality)
 - [AnimItemLayer3p](#animitemlayer3p)
 - [AnimState3p](#animstate3p)
 - [AttachmentDescriptiveAdvantages](#attachmentdescriptiveadvantages)
@@ -487,6 +488,20 @@ Last Update (14.1.0.1)
  [1] = Noclip
  [2] = GodMode
  [4] = BypassMode
+```
+
+</details>
+
+### AnimationQuality
+
+<details><summary><b>PlayerRoles.FirstPersonControl.Thirdperson.Subcontrollers.CullingSubcontroller+AnimationQuality</b></summary>
+
+```
+ [0] = VeryLow
+ [1] = Low
+ [2] = Medium
+ [3] = High
+ [4] = Ultra
 ```
 
 </details>
@@ -3544,6 +3559,7 @@ Last Update (14.1.0.1)
  [7] = BulletDecalsEnabled
  [8] = BloodDecalsLimit
  [9] = BulletDecalsLimits
+ [10] = AnimationQuality
 ```
 
 </details>
@@ -3669,6 +3685,7 @@ Last Update (14.1.0.1)
  [268435456] = FriendlyFireDetectorTempDisable
  [536870912] = ServerLogLiveFeed
  [1073741824] = ExecuteAs
+ [2147483648] = Vanish
 ```
 
 </details>
@@ -3861,7 +3878,6 @@ Last Update (14.1.0.1)
  [1] = ConfirmThrowWeak
  [2] = ConfirmThrowFullForce
  [3] = CancelThrow
- [4] = ForceCancel
 ```
 
 </details>
@@ -5648,7 +5664,7 @@ Last Update (14.1.0.1)
 
 <details><summary> <b>Damage Handlers</b></summary>
 
-```md title="Latest Updated: 14.1.0.1"
+```md title="Latest Updated: 14.1.0.4"
 All available DamageHandlers
 
 + Symbol ':' literally means "inherits from"

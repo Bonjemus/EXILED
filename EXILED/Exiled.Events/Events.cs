@@ -89,6 +89,9 @@ namespace Exiled.Events
 
             ServerSpecificSettingsSync.ServerOnSettingValueReceived += SettingBase.OnSettingUpdated;
 
+            LabApi.Events.Handlers.PlayerEvents.ReloadingWeapon += Handlers.Player.OnReloadingWeapon;
+            LabApi.Events.Handlers.PlayerEvents.UnloadingWeapon += Handlers.Player.OnUnloadingWeapon;
+
             ServerConsole.ReloadServerName();
         }
 
@@ -123,6 +126,9 @@ namespace Exiled.Events
             ItemPickupBase.OnPickupDestroyed -= Handlers.Internal.PickupEvent.OnRemovedPickup;
 
             ServerSpecificSettingsSync.ServerOnSettingValueReceived -= SettingBase.OnSettingUpdated;
+
+            LabApi.Events.Handlers.PlayerEvents.ReloadingWeapon -= Handlers.Player.OnReloadingWeapon;
+            LabApi.Events.Handlers.PlayerEvents.UnloadingWeapon -= Handlers.Player.OnUnloadingWeapon;
         }
 
         /// <summary>
