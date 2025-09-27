@@ -45,6 +45,9 @@ namespace Exiled.CustomRoles.API.Features
 
         private static readonly Dictionary<uint, CustomRole?> IdLookupTable = new();
 
+        // used in AddRole and InternalChangingRole
+        private static bool skipChangingCheck;
+
         /// <summary>
         /// Gets a list of all registered custom roles.
         /// </summary>
@@ -287,6 +290,37 @@ namespace Exiled.CustomRoles.API.Features
             ListPool<CustomRole>.Pool.Return(tempList);
 
             return customRoles?.Count > 0;
+        }
+
+        /// <summary>
+        /// Registers all the <see cref="CustomRole"/>'s present in the current assembly.
+        /// </summary>
+        /// <param name="byAttribute">Whether to register by attribute.</param>
+        /// <returns>A <see cref="IEnumerable{T}"/> of <see cref="CustomRole"/> which contains all registered <see cref="CustomRole"/>'s.</returns>
+        /// <remarks>
+        /// This is just a dumbed down version of <see cref="RegisterRoles(bool, object?)"/> for QoL, if you actually use <see cref="CustomRoleAttribute"/>, do not use this overload.
+        /// </remarks>
+        public static IEnumerable<CustomRole> RegisterRoles(bool byAttribute = false)
+        {
+            if (byAttribute)
+            {
+                return RegisterRoles(false, null);
+            }
+
+            List<CustomRole> roles = new();
+
+            foreach (Type type in Assembly.GetCallingAssembly().GetTypes())
+            {
+                if (type.IsAbstract || !type.IsSubclassOf(typeof(CustomRole)))
+                    continue;
+
+                CustomRole role = (CustomRole)Activator.CreateInstance(type);
+
+                if (role.TryRegister())
+                    roles.Add(role);
+            }
+
+            return roles;
         }
 
         /// <summary>
@@ -582,9 +616,15 @@ namespace Exiled.CustomRoles.API.Features
             player.Scale = Scale;
             if (Gravity.HasValue && player.Role is FpcRole fpcRole)
                 fpcRole.Gravity = Gravity.Value;
-            Vector3 position = GetSpawnPosition();
-            if (position != Vector3.zero)
-                player.Position = position;
+
+            if (!KeepPositionOnSpawn)
+            {
+                Vector3 position = GetSpawnPosition();
+                if (position != Vector3.zero)
+                {
+                    player.Position = position;
+                }
+            }
 
             Log.Debug($"{Name}: Setting player info");
 
