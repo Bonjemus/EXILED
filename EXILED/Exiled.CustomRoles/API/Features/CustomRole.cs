@@ -39,19 +39,16 @@ namespace Exiled.CustomRoles.API.Features
     {
         private const float AddRoleItemAndAmmoDelay = 0.25f;
 
-        private static readonly Dictionary<Type, CustomRole?> TypeLookupTable = new();
+        private static readonly Dictionary<Type, CustomRole?> TypeLookupTable = [];
 
-        private static readonly Dictionary<string, CustomRole?> StringLookupTable = new();
+        private static readonly Dictionary<string, CustomRole?> StringLookupTable = [];
 
-        private static readonly Dictionary<uint, CustomRole?> IdLookupTable = new();
-
-        // used in AddRole and InternalChangingRole
-        private static bool skipChangingCheck;
+        private static readonly Dictionary<uint, CustomRole?> IdLookupTable = [];
 
         /// <summary>
         /// Gets a list of all registered custom roles.
         /// </summary>
-        public static HashSet<CustomRole> Registered { get; } = new();
+        public static HashSet<CustomRole> Registered { get; } = [];
 
         /// <summary>
         /// Gets or sets the custom RoleID of the role.
