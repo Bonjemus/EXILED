@@ -16,8 +16,23 @@ namespace Exiled.CustomItems.Events
     /// </summary>
     internal sealed class MapHandler
     {
-        /// <inheritdoc cref="Exiled.Events.Handlers.Server.WaitingForPlayers"/>
-        public void OnWaitingForPlayers()
+        /// <summary>
+        /// Registers the events.
+        /// </summary>
+        internal void Register()
+        {
+            Exiled.Events.Handlers.Server.WaitingForPlayers += OnWaitingForPlayers;
+        }
+
+        /// <summary>
+        /// Unregisters the events.
+        /// </summary>
+        internal void Unregister()
+        {
+            Exiled.Events.Handlers.Server.WaitingForPlayers -= OnWaitingForPlayers;
+        }
+
+        private void OnWaitingForPlayers()
         {
             Timing.CallDelayed(2, () => // The delay is necessary because the generation of the lockers takes time, due to the way they are made in the base game.
             {

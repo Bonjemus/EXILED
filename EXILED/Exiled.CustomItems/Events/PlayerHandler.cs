@@ -11,24 +11,43 @@ namespace Exiled.CustomItems.Events
     using Exiled.API.Features;
     using Exiled.CustomItems.API.Features;
     using Exiled.Events.EventArgs.Player;
+    using InventorySystem.Items.Usables;
 
     /// <summary>
     /// Handles Player events for the CustomItem API.
     /// </summary>
     internal sealed class PlayerHandler
     {
-        /// <inheritdoc cref="ChangingItemEventArgs"/>
-        public void OnChangingItem(ChangingItemEventArgs ev)
+        /// <summary>
+        /// Registers the events.
+        /// </summary>
+        internal void Register()
+        {
+            Exiled.Events.Handlers.Player.ChangingItem += OnChangingItem;
+        }
+
+        /// <summary>
+        /// Unregisters the events.
+        /// </summary>
+        internal void Unregister()
+        {
+            Exiled.Events.Handlers.Player.ChangingItem -= OnChangingItem;
+        }
+
+        private void OnChangingItem(ChangingItemEventArgs ev)
         {
             if (!ev.IsAllowed)
                 return;
-            if (CustomItem.TryGet(ev.Item, out CustomItem? newItem) && (newItem?.ShouldMessageOnGban ?? false))
+
+            if (ev.Item != null && CustomItem.TryGet(ev.Item, out CustomItem? newItem) && (newItem?.ShouldMessageOnGban ?? false))
             {
                 SpectatorCustomNickname(ev.Player, $"{ev.Player.CustomName} (CustomItem: {newItem.Name})");
             }
-            else if (ev.Player != null && CustomItem.TryGet(ev.Player.CurrentItem, out _))
+            else
             {
-                SpectatorCustomNickname(ev.Player, ev.Player.HasCustomName ? ev.Player.CustomName : string.Empty);
+                Exiled.API.Features.Items.Item? currenItem = ev.Player.CurrentItem;
+                if (currenItem != null && ev.Player != null && CustomItem.TryGet(currenItem, out _))
+                    SpectatorCustomNickname(ev.Player, ev.Player.HasCustomName ? ev.Player.CustomName : string.Empty);
             }
         }
 
