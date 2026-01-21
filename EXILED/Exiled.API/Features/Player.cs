@@ -151,11 +151,17 @@ namespace Exiled.API.Features
         public static IEnumerable<Player> Enumerable => Dictionary.Values;
 
         /// <summary>
-        /// Gets the number of players currently on the server.
+        /// Gets the number of players (Count Dummy with it) currently on the server.
         /// </summary>
         /// <seealso cref="List"/>
         /// <seealso cref="Enumerable"/>
-        public static int Count => Dictionary.Count;
+        /// <seealso cref="ConnectedCount"/>
+        public static int Count => List.Count;
+
+        /// <summary>
+        /// Gets the number of connected players currently on the server.
+        /// </summary>
+        public static int ConnectedCount => ReferenceHub.GetPlayerCount(CentralAuth.ClientInstanceMode.ReadyClient);
 
         /// <summary>
         /// Gets a <see cref="Dictionary{TKey, TValue}"/> containing cached <see cref="Player"/> and their user ids.
@@ -378,7 +384,7 @@ namespace Exiled.API.Features
             {
                 if (!NicknameSync.ValidateCustomInfo(value, out string rejectionText))
                 {
-                    Log.Error($"Could not set CustomInfo for {Nickname}. Reason: {rejectionText}");
+                    Log.Warn($"Could not set CustomInfo for {Nickname}. Reason: {rejectionText}");
                 }
 
                 InfoArea = string.IsNullOrEmpty(value) ? InfoArea & ~PlayerInfoArea.CustomInfo : InfoArea |= PlayerInfoArea.CustomInfo;
@@ -473,6 +479,15 @@ namespace Exiled.API.Features
         }
 
         /// <summary>
+        /// Gets or sets a value indicating whether the player has noclip enabled.
+        /// </summary>
+        public bool IsNoclipEnabled
+        {
+            get => ReferenceHub.playerStats.GetModule<AdminFlagsStat>().HasFlag(AdminFlags.Noclip);
+            set => ReferenceHub.playerStats.GetModule<AdminFlagsStat>().SetFlag(AdminFlags.Noclip, value);
+        }
+
+        /// <summary>
         /// Gets or sets a value indicating the <see cref="Player"/> that currently has the player cuffed.
         /// <para>
         /// This value will be <see langword="null"/> if the player is not cuffed. Setting this value to <see langword="null"/> will uncuff the player if they are cuffed.
@@ -527,8 +542,15 @@ namespace Exiled.API.Features
         /// <returns>Returns the direction the player is looking at.</returns>
         public Quaternion Rotation
         {
-            get => Transform.rotation;
-            set => ReferenceHub.TryOverrideRotation(value.eulerAngles);
+            get => CameraTransform.rotation;
+            set
+            {
+                Vector2 rotation = value.eulerAngles;
+                rotation.x = Mathf.Repeat(rotation.x + 180f, 360f) - 180f; // X Rotation is limited to [-88, 88] degrees, and just clamps values like 400 even though they are in range
+                rotation.x *= -1; // X Rotation is inverted in class FpcMouseLook
+                rotation.y = Mathf.Repeat(rotation.y, 360f); // This is necessary because rotation is clamped in FpcMouseLook
+                ReferenceHub.TryOverrideRotation(rotation);
+            }
         }
 
         /// <summary>
@@ -547,7 +569,11 @@ namespace Exiled.API.Features
         public PlayerPermissions RemoteAdminPermissions
         {
             get => (PlayerPermissions)ReferenceHub.serverRoles.Permissions;
-            set => ReferenceHub.serverRoles.Permissions = (ulong)value;
+            set
+            {
+                ReferenceHub.serverRoles.Permissions = (ulong)value;
+                ReferenceHub.serverRoles.FinalizeSetGroup();
+            }
         }
 
         /// <summary>
@@ -615,7 +641,7 @@ namespace Exiled.API.Features
         /// <summary>
         /// Gets a value indicating whether the player is reloading a weapon.
         /// </summary>
-        public bool IsReloading => CurrentItem is Firearm firearm && !firearm.IsReloading;
+        public bool IsReloading => CurrentItem is Firearm firearm && firearm.IsReloading;
 
         /// <summary>
         /// Gets a value indicating whether the player is aiming with a weapon.
@@ -1898,7 +1924,7 @@ namespace Exiled.API.Features
         }
 
         /// <summary>
-        /// Sets the player's rank.
+        /// Receives an existing rank(group) or, if it doesn't exist, creates a new one and assigns it to this player.
         /// </summary>
         /// <param name="name">The rank name to be set.</param>
         /// <param name="group">The group to be set.</param>
@@ -1906,24 +1932,32 @@ namespace Exiled.API.Features
         {
             if (ServerStatic.PermissionsHandler.Groups.TryGetValue(name, out UserGroup userGroup))
             {
-                userGroup.BadgeColor = group.BadgeColor;
-                userGroup.BadgeText = name;
-                userGroup.HiddenByDefault = !group.Cover;
-                userGroup.Cover = group.Cover;
-
                 ReferenceHub.serverRoles.SetGroup(userGroup, false, false);
             }
             else
             {
                 ServerStatic.PermissionsHandler.Groups.Add(name, group);
-
                 ReferenceHub.serverRoles.SetGroup(group, false, false);
             }
 
-            if (ServerStatic.PermissionsHandler.Members.ContainsKey(UserId))
+            ServerStatic.PermissionsHandler.Members[UserId] = name;
+        }
+
+        /// <summary>
+        /// If the rank(group) exists in the remote admin config, it will assign it to the player.
+        /// </summary>
+        /// <param name="name">The rank name to be set.</param>
+        /// <returns><see langword="true"/> if the rank(group) was found and successfully assigned, <see langword="false"/> otherwise.</returns>
+        public bool TrySetRank(string name)
+        {
+            if (ServerStatic.PermissionsHandler.Groups.TryGetValue(name, out UserGroup userGroup))
+            {
+                ReferenceHub.serverRoles.SetGroup(userGroup, false, false);
                 ServerStatic.PermissionsHandler.Members[UserId] = name;
-            else
-                ServerStatic.PermissionsHandler.Members.Add(UserId, name);
+                return true;
+            }
+
+            return false;
         }
 
         /// <summary>
@@ -1968,6 +2002,21 @@ namespace Exiled.API.Features
         }
 
         /// <summary>
+        /// Send an <see cref="global::Cassie.CassieAnnouncement"/> to the player.
+        /// </summary>
+        /// <param name="cassieAnnouncement">The <see cref="global::Cassie.CassieAnnouncement"/> to be broadcasted.</param>
+        /// <returns><see langword="0"/> if Cassie failed to play it or it's play nothing, otherwise it's return the duration of the annoucement.</returns>
+        public float CassieAnnouncement(global::Cassie.CassieAnnouncement cassieAnnouncement)
+        {
+            global::Cassie.CassieAnnouncementDispatcher.CurrentAnnouncement.OnStartedPlaying();
+            global::Cassie.CassieTtsPayload payload = cassieAnnouncement.Payload;
+            if (!global::Cassie.CassieTtsAnnouncer.TryPlay(payload, out float totalduration))
+                return 0;
+            payload.SendToHubsConditionally(x => x == ReferenceHub);
+            return totalduration;
+        }
+
+        /// <summary>
         /// Drops an item from the player's inventory.
         /// </summary>
         /// <param name="item">The <see cref="Item"/> to be dropped.</param>
@@ -1999,10 +2048,12 @@ namespace Exiled.API.Features
         /// <returns>Dropped item's <see cref="Pickup"/>.</returns>
         public Pickup DropHeldItem()
         {
-            if (CurrentItem is null)
+            Item item = CurrentItem;
+
+            if (item is null)
                 return null;
 
-            return DropItem(CurrentItem);
+            return DropItem(item);
         }
 
         /// <summary>
@@ -2578,7 +2629,6 @@ namespace Exiled.API.Features
         {
             if (!HasCustomAmmoLimit(ammoType))
             {
-                Log.Error($"{nameof(Player)}.{nameof(ResetAmmoLimit)}(AmmoType): AmmoType.{ammoType} does not have a custom limit.");
                 return;
             }
 
@@ -2671,7 +2721,6 @@ namespace Exiled.API.Features
 
             if (!HasCustomCategoryLimit(category))
             {
-                Log.Error($"{nameof(Player)}.{nameof(ResetCategoryLimit)}(ItemCategory): ItemCategory.{category} does not have a custom limit.");
                 return;
             }
 
@@ -2911,14 +2960,14 @@ namespace Exiled.API.Features
 
                 Inventory.UserInventory.Items[item.Serial] = itemBase;
 
+                typeof(InventoryExtensions).InvokeStaticEvent(nameof(InventoryExtensions.OnItemAdded), new object[] { ReferenceHub, itemBase, null });
+
                 item.ChangeOwner(item.Owner, this);
 
                 if (itemBase is IAcquisitionConfirmationTrigger acquisitionConfirmationTrigger)
                 {
                     acquisitionConfirmationTrigger.AcquisitionAlreadyReceived = false;
                 }
-
-                typeof(InventoryExtensions).InvokeStaticEvent(nameof(InventoryExtensions.OnItemAdded), new object[] { ReferenceHub, itemBase, null });
 
                 Inventory.SendItemsNextFrame = true;
                 return item;
@@ -3389,10 +3438,7 @@ namespace Exiled.API.Features
         {
             if (effect.IsEnabled)
             {
-                EnableEffect(effect.Type, effect.Duration, effect.AddDurationIfActive);
-
-                if (effect.Intensity > 0)
-                    ChangeEffectIntensity(effect.Type, effect.Intensity, effect.Duration);
+                EnableEffect(effect.Type, effect.Intensity, effect.Duration, effect.AddDurationIfActive);
             }
         }
 
@@ -3520,8 +3566,7 @@ namespace Exiled.API.Features
         {
             if (ReferenceHub.playerEffectsController.TryGetEffect(out T statusEffect))
             {
-                statusEffect.Intensity = intensity;
-                statusEffect.ServerChangeDuration(duration, true);
+                statusEffect.ServerSetState(intensity, duration, false);
             }
         }
 
@@ -3535,8 +3580,7 @@ namespace Exiled.API.Features
         {
             if (TryGetEffect(type, out StatusEffectBase statusEffect))
             {
-                statusEffect.Intensity = intensity;
-                statusEffect.ServerChangeDuration(duration, false);
+                statusEffect.ServerSetState(intensity, duration, false);
             }
         }
 
