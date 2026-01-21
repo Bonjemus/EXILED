@@ -1032,7 +1032,7 @@ namespace Exiled.CustomRoles.API.Features
         private void OnInternalChangingRole(ChangingRoleEventArgs ev)
         {
             if (ev.IsAllowed && ev.Reason != SpawnReason.Destroyed && Check(ev.Player) && ((ev.NewRole == RoleTypeId.Spectator && !KeepRoleOnDeath) || (ev.NewRole != RoleTypeId.Spectator && !KeepRoleOnChangingRole)))
-                RemoveRole(ev.Player);
+                RemoveRole(ev.Player, ev.Reason, ev.SpawnFlags);
         }
 
         private void OnSpawningRagdoll(SpawningRagdollEventArgs ev)
