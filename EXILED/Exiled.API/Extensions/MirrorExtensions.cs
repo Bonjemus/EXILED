@@ -13,26 +13,36 @@ namespace Exiled.API.Extensions
     using System.Linq;
     using System.Reflection;
     using System.Reflection.Emit;
-    using System.Text;
 
     using AdminToys;
+
     using AudioPooling;
+
     using Cassie;
+
     using CustomPlayerEffects;
+
+    using Decals;
+
     using Exiled.API.Enums;
     using Exiled.API.Features.Items;
     using Exiled.API.Features.Items.Keycards;
     using Exiled.API.Features.Pickups.Keycards;
+
     using Features;
-    using Features.Pools;
+
+    using HarmonyLib;
+
     using InventorySystem;
     using InventorySystem.Items;
     using InventorySystem.Items.Autosync;
-    using InventorySystem.Items.Firearms;
     using InventorySystem.Items.Firearms.Modules;
     using InventorySystem.Items.Keycards;
+
     using MEC;
+
     using Mirror;
+
     using PlayerRoles;
     using PlayerRoles.Blood;
     using PlayerRoles.FirstPersonControl;
@@ -40,10 +50,16 @@ namespace Exiled.API.Extensions
     using PlayerRoles.PlayableScps.Scp1507;
     using PlayerRoles.Spectating;
     using PlayerRoles.Voice;
+
     using RelativePositioning;
-    using Respawning;
+
+    using Unity.Collections.LowLevel.Unsafe;
+
     using UnityEngine;
+
     using Utils.Networking;
+
+    using Firearm = Features.Items.Firearm;
 
     /// <summary>
     /// A set of extensions for <see cref="Mirror"/> Networking.
@@ -56,9 +72,6 @@ namespace Exiled.API.Extensions
         private static readonly ReadOnlyDictionary<Type, MethodInfo> ReadOnlyWriterExtensionsValue = new(WriterExtensionsValue);
         private static readonly ReadOnlyDictionary<string, ulong> ReadOnlySyncVarDirtyBitsValue = new(SyncVarDirtyBitsValue);
         private static readonly ReadOnlyDictionary<string, string> ReadOnlyRpcFullNamesValue = new(RpcFullNamesValue);
-        private static MethodInfo setDirtyBitsMethodInfoValue;
-        private static MethodInfo sendSpawnMessageMethodInfoValue;
-        private static string[] adminToyBaseSyncVarsValue;
 
         /// <summary>
         /// Gets <see cref="MethodInfo"/> corresponding to <see cref="Type"/>.
@@ -105,19 +118,38 @@ namespace Exiled.API.Extensions
                         if (setMethod is null)
                             continue;
 
-                        MethodBody methodBody = setMethod.GetMethodBody();
-
-                        if (methodBody is null)
-                            continue;
-
-                        byte[] bytecodes = methodBody.GetILAsByteArray();
+                        ulong bit = GetBit(setMethod);
 
                         if (!SyncVarDirtyBitsValue.ContainsKey($"{property.ReflectedType.Name}.{property.Name}"))
-                            SyncVarDirtyBitsValue.Add($"{property.ReflectedType.Name}.{property.Name}", bytecodes[bytecodes.LastIndexOf((byte)OpCodes.Ldc_I8.Value) + 1]);
+                            SyncVarDirtyBitsValue.Add($"{property.ReflectedType.Name}.{property.Name}", bit);
                     }
                 }
 
                 return ReadOnlySyncVarDirtyBitsValue;
+
+                static ulong GetBit(MethodInfo setter)
+                {
+                    List<CodeInstruction> instructions = PatchProcessor.GetOriginalInstructions(setter);
+
+                    object operand = null;
+                    ulong bit;
+                    try
+                    {
+                        operand = instructions.Single(c => c.opcode == OpCodes.Ldc_I8).operand;
+                        long casted = (long)operand;
+
+                        // Standard casting doesn't work here because IL doesn't have a specific instruction for unsigned ulongs, it just loads it as a long and uses that.
+                        // Because of that, harmony here gives it back as a long, and standard casting would clamp the value if it was ever big enough, so we need an unsafe cast.
+                        bit = UnsafeUtility.As<long, ulong>(ref casted);
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Error($"Error finding dirty bit in method {setter.ReflectedType.Name}.{setter.Name}! Found operand type: {operand?.GetType().Name ?? "Null"}. Exception: {ex}");
+                        return 0;
+                    }
+
+                    return bit;
+                }
             }
         }
 
@@ -151,19 +183,19 @@ namespace Exiled.API.Extensions
         }
 
         /// <summary>
-        /// Gets a <see cref="NetworkBehaviour.SetSyncVarDirtyBit(ulong)"/>'s <see cref="MethodInfo"/>.
+        /// Gets a NetworkIdentity.SerializeServer's <see cref="MethodInfo"/>.
         /// </summary>
-        public static MethodInfo SetDirtyBitsMethodInfo => setDirtyBitsMethodInfoValue ??= typeof(NetworkBehaviour).GetMethod(nameof(NetworkBehaviour.SetSyncVarDirtyBit));
+        public static MethodInfo SerializeServerMethodInfo => field ??= typeof(NetworkIdentity).GetMethod("SerializeServer", BindingFlags.NonPublic | BindingFlags.Instance);
 
         /// <summary>
         /// Gets a NetworkServer.SendSpawnMessage's <see cref="MethodInfo"/>.
         /// </summary>
-        public static MethodInfo SendSpawnMessageMethodInfo => sendSpawnMessageMethodInfoValue ??= typeof(NetworkServer).GetMethod("SendSpawnMessage", BindingFlags.NonPublic | BindingFlags.Static);
+        public static MethodInfo SendSpawnMessageMethodInfo => field ??= typeof(NetworkServer).GetMethod("SendSpawnMessage", BindingFlags.NonPublic | BindingFlags.Static);
 
         /// <summary>
         /// Gets all <see cref="AdminToyBase"/> sync var names.
         /// </summary>
-        public static string[] AdminToyBaseSyncVars => adminToyBaseSyncVarsValue ??= typeof(AdminToyBase).GetProperties().Where(property => property.Name.Contains("Network")).Select(property => property.Name).ToArray();
+        public static string[] AdminToyBaseSyncVars => field ??= typeof(AdminToyBase).GetProperties().Where(property => property.Name.Contains("Network")).Select(property => property.Name).ToArray();
 
         /// <summary>
         /// Plays a beep sound that only the target <paramref name="player"/> can hear.
@@ -199,41 +231,240 @@ namespace Exiled.API.Extensions
         /// <param name="firearmType">Weapon's sound to play.</param>
         /// <param name="pitch">Speed of sound.</param>
         /// <param name="clipIndex">Index of clip.</param>
-        public static void PlayGunSound(this Player player, Vector3 position, FirearmType firearmType, float pitch = 1, int clipIndex = 0)
+        [Obsolete("This method is deprecated, use PlayGunSound(this Player, FirearmType, int, Vector3, MixerChannel, float, float) instead.")]
+        public static void PlayGunSound(this Player player, Vector3 position, FirearmType firearmType, float pitch = 1, int clipIndex = 0) => player.PlayGunSound(firearmType, clipIndex, position, pitch: pitch);
+
+        /// <summary>
+        /// Plays a gun sound that only the <paramref name="player"/> can hear.
+        /// </summary>
+        /// <param name="player">Target to play.</param>
+        /// <param name="firearmType">Weapon's sound to play.</param>
+        /// <param name="clipIndex">Index of clip.</param>
+        /// <param name="position">Position to play on.</param>
+        /// <param name="mixerChannel">Audio's mixer channel.</param>
+        /// <param name="range">Max range of sound.</param>
+        /// <param name="pitch">Speed of sound.</param>
+        public static void PlayGunSound(this Player player, FirearmType firearmType, int clipIndex, Vector3 position, MixerChannel mixerChannel = MixerChannel.Weapons, float? range = null, float? pitch = null)
         {
-            if (firearmType is FirearmType.ParticleDisruptor or FirearmType.None)
+            if (firearmType is FirearmType.None)
+            {
+                Log.Error($"Failed to play gun sound for player {player.Nickname} because firearm type was None.");
                 return;
+            }
 
-            Features.Items.Firearm firearm = Features.Items.Firearm.ItemTypeToFirearmInstance[firearmType];
+            if (!InventoryItemLoader.TryGetItem(firearmType.GetItemType(), out ItemBase itemBase))
+            {
+                Log.Error($"Failed to get ItemBase for firearm type {firearmType} when trying to play gun sound for player {player.Nickname}");
+                return;
+            }
 
+            Firearm firearm = Item.Get<Firearm>(itemBase);
             if (firearm == null)
+            {
+                Log.Error($"Failed to get Firearm for firearm type {firearmType} when trying to play gun sound.");
                 return;
+            }
 
             using (NetworkWriterPooled writer = NetworkWriterPool.Get())
             {
                 writer.WriteUShort(NetworkMessageId<RoleSyncInfo>.Id);
-                new RoleSyncInfo(Server.Host.ReferenceHub, RoleTypeId.ClassD, player.ReferenceHub, null).Write(writer);
+                new RoleSyncInfo(Server.Host.ReferenceHub, RoleTypeId.Tutorial, player.ReferenceHub, null).Write(writer);
                 writer.WriteRelativePosition(new RelativePosition(0, 0, 0, 0, false));
                 writer.WriteUShort(0);
                 player.Connection.Send(writer);
             }
 
-            firearm.BarrelAmmo = 1;
-            firearm.BarrelMagazine.IsCocked = true;
             player.SendFakeSyncVar(Server.Host.Inventory.netIdentity, typeof(Inventory), nameof(Inventory.NetworkCurItem), firearm.Identifier);
 
-            if (!firearm.Base.TryGetModule(out AudioModule audioModule))
-                return;
-
-            Timing.CallDelayed(0.1f, () => // due to selecting item we need to delay shot a bit
+            Timing.CallDelayed(0.1f, () =>
             {
-                audioModule.SendRpc(player.ReferenceHub, writer =>
-                    audioModule.ServerSend(writer, clipIndex, pitch, MixerChannel.Weapons, 12f, position, false));
+                if (!player.IsConnected)
+                    return;
 
+                firearm.PlaySound(player, clipIndex, mixerChannel, position, shooterVisible: false, range, pitch);
                 player.SendFakeSyncVar(Server.Host.Inventory.netIdentity, typeof(Inventory), nameof(Inventory.NetworkCurItem), ItemIdentifier.None);
-
                 player.Connection.Send(new RoleSyncInfo(Server.Host.ReferenceHub, Server.Host.Role, player.ReferenceHub, null));
             });
+        }
+
+        /// <summary>
+        /// Plays a gun sound to the specified player.
+        /// </summary>
+        /// <param name="firearm">The firearm whose <see cref="AudioModule"/> to use.</param>
+        /// <param name="target">The player to send the sound to.</param>
+        /// <param name="index">The index of the audio clip to play.</param>
+        /// <param name="channel">The <see cref="MixerChannel"/> to play the sound on.</param>
+        /// <param name="position">The world position the sound originates from.</param>
+        /// <param name="shooterVisible">Whether the shooter is visible to the target. If <see langword="false"/>, the sound will be played at <paramref name="position"/> instead of on the firearm's transform.</param>
+        /// <param name="range">The range of the sound.</param>
+        /// <param name="pitch">The pitch of the sound.</param>
+        /// <returns><see langword="true"/> if the sound was played successfully; <see langword="false"/> if <see cref="AudioModule"/> is <see langword="null"/>.</returns>
+        public static bool PlaySound(this Firearm firearm, Player target, int index, MixerChannel channel, Vector3 position, bool shooterVisible, float? range = null, float? pitch = null)
+        {
+            AudioModule audioModule = firearm.AudioModule;
+            if (audioModule == null)
+            {
+                Log.Error($"Firearm {firearm} doesn't have an audio module.");
+                return false;
+            }
+
+            if (target == null)
+            {
+                Log.Error("Target player is null.");
+                return false;
+            }
+
+            if (!range.HasValue)
+                range = audioModule.FinalGunshotRange;
+
+            if (!pitch.HasValue)
+                pitch = audioModule.RandomPitch;
+
+            audioModule.SendRpc(target.ReferenceHub, writer => audioModule.ServerSend(writer, index, pitch.Value, channel, range.Value, position, shooterVisible));
+            return true;
+        }
+
+        /// <summary>
+        /// Plays a gun sound to the specified players.
+        /// </summary>
+        /// <param name="firearm">The firearm whose <see cref="AudioModule"/> to use.</param>
+        /// <param name="targets">The players to send the sound to.</param>
+        /// <param name="index">The index of the audio clip to play.</param>
+        /// <param name="channel">The <see cref="MixerChannel"/> to play the sound on.</param>
+        /// <param name="position">The world position the sound originates from.</param>
+        /// <param name="shooterVisible">Whether the shooter is visible to the target. If <see langword="false"/>, the sound will be played at <paramref name="position"/> instead of on the firearm's transform.</param>
+        /// <param name="range">The range of the sound.</param>
+        /// <param name="pitch">The pitch of the sound.</param>
+        /// <returns><see langword="true"/> if the sound was played successfully; <see langword="false"/> if <see cref="AudioModule"/> is <see langword="null"/>.</returns>
+        public static bool PlaySound(this Firearm firearm, IEnumerable<Player> targets, int index, MixerChannel channel, Vector3 position, bool shooterVisible, float? range = null, float? pitch = null)
+        {
+            AudioModule audioModule = firearm.AudioModule;
+            if (audioModule == null)
+            {
+                Log.Error($"Firearm {firearm} doesn't have an audio module.");
+                return false;
+            }
+
+            if (targets == null)
+            {
+                Log.Error("Failed to play sound, targets is null.");
+                return false;
+            }
+
+            if (!range.HasValue)
+                range = audioModule.FinalGunshotRange;
+
+            if (!pitch.HasValue)
+                pitch = audioModule.RandomPitch;
+
+            HashSet<ReferenceHub> targetHubs = targets.Select(p => p.ReferenceHub).ToHashSet();
+
+            audioModule.SendRpc(targetHubs.Contains, writer => audioModule.ServerSend(writer, index, pitch.Value, channel, range.Value, position, shooterVisible));
+            return true;
+        }
+
+        /// <summary>
+        /// Spawns a blood decal for this player.
+        /// </summary>
+        /// <param name="player">Target to spawn blood decal for.</param>
+        /// <param name="position">The position of the blood decal.</param>
+        /// <param name="sourcePosition">The raycast origin used to determine the decal's orientation.</param>
+        /// <returns><see langword="true"/> if the blood decal was successfully spawned; otherwise, <see langword="false"/>.</returns>
+        public static bool SpawnBlood(this Player player, Vector3 position, Vector3 sourcePosition) => SpawnDecal(player, position, sourcePosition, DecalPoolType.Blood);
+
+        /// <summary>
+        /// Spawns a blood decal for the specified players.
+        /// </summary>
+        /// <param name="players">The players for which to spawn the blood decal.</param>
+        /// <param name="position">The position of the blood decal.</param>
+        /// <param name="sourcePosition">The raycast origin used to determine the decal's orientation.</param>
+        /// <returns><see langword="true"/> if the blood decal was successfully spawned; otherwise, <see langword="false"/>.</returns>
+        public static bool SpawnBlood(this IEnumerable<Player> players, Vector3 position, Vector3 sourcePosition) => SpawnDecal(players, position, sourcePosition, DecalPoolType.Blood, FirearmType.Com15);
+
+        /// <summary>
+        /// Spawns a decal for this player.
+        /// </summary>
+        /// <param name="player">Target to spawn decal for.</param>
+        /// <param name="position">The position of the decal.</param>
+        /// <param name="sourcePosition">The raycast origin used to determine the decal's orientation.</param>
+        /// <param name="decalType">The <see cref="Decals.DecalPoolType"/>.</param>
+        /// <param name="firearmType">The <see cref="Enums.FirearmType"/> to use.</param>
+        /// <returns><see langword="true"/> if the decal was successfully spawned; otherwise, <see langword="false"/>.</returns>
+        public static bool SpawnDecal(this Player player, Vector3 position, Vector3 sourcePosition, DecalPoolType decalType, FirearmType firearmType = FirearmType.Com15)
+        {
+            if (!InventoryItemLoader.TryGetItem(firearmType.GetItemType(), out ItemBase itemBase))
+            {
+                Log.Error($"Failed to spawn decal: Could not find a Firearm for {firearmType}.");
+                return false;
+            }
+
+            Firearm firearm = Item.Get<Firearm>(itemBase);
+            if (firearm == null)
+            {
+                Log.Error($"Failed to spawn decal: Could not find a Firearm for {firearmType}.");
+                return false;
+            }
+
+            ImpactEffectsModule impactEffectsModule = firearm.ImpactEffectsModule;
+            if (impactEffectsModule == null)
+            {
+                Log.Error($"Failed to spawn decal: Could not find an ImpactEffectsModule for {firearmType}.");
+                return false;
+            }
+
+            impactEffectsModule.SendRpc(player.ReferenceHub, writer =>
+            {
+                writer.WriteSubheader(ImpactEffectsModule.RpcType.ImpactDecal);
+                writer.WriteByte((byte)decalType);
+                writer.WriteRelativePosition(new RelativePosition(position));
+                writer.WriteRelativePosition(new RelativePosition(sourcePosition));
+            });
+
+            return true;
+        }
+
+        /// <summary>
+        /// Spawns a decal for the specified targets.
+        /// </summary>
+        /// <param name="targets">The targets for which to spawn the decal.</param>
+        /// <param name="position">The position of the decal.</param>
+        /// <param name="sourcePosition">The raycast origin used to determine the decal's orientation.</param>
+        /// <param name="decalType">The <see cref="Decals.DecalPoolType"/>.</param>
+        /// <param name="firearmType">The <see cref="Enums.FirearmType"/> to use.</param>
+        /// <returns><see langword="true"/> if the decal was successfully spawned; otherwise, <see langword="false"/>.</returns>
+        public static bool SpawnDecal(this IEnumerable<Player> targets, Vector3 position, Vector3 sourcePosition, DecalPoolType decalType, FirearmType firearmType = FirearmType.Com15)
+        {
+            if (!InventoryItemLoader.TryGetItem(firearmType.GetItemType(), out ItemBase itemBase))
+            {
+                Log.Error($"Failed to spawn decal: Could not find a Firearm for {firearmType}.");
+                return false;
+            }
+
+            Firearm firearm = Item.Get<Firearm>(itemBase);
+            if (firearm == null)
+            {
+                Log.Error($"Failed to spawn decal: Could not find a Firearm for {firearmType}.");
+                return false;
+            }
+
+            ImpactEffectsModule impactEffectsModule = firearm.ImpactEffectsModule;
+            if (impactEffectsModule == null)
+            {
+                Log.Error($"Failed to spawn decal: Could not find an ImpactEffectsModule for {firearmType}.");
+                return false;
+            }
+
+            HashSet<ReferenceHub> targetHubs = targets.Select(p => p.ReferenceHub).ToHashSet();
+
+            impactEffectsModule.SendRpc(targetHubs.Contains, writer =>
+            {
+                writer.WriteSubheader(ImpactEffectsModule.RpcType.ImpactDecal);
+                writer.WriteByte((byte)decalType);
+                writer.WriteRelativePosition(new RelativePosition(position));
+                writer.WriteRelativePosition(new RelativePosition(sourcePosition));
+            });
+
+            return true;
         }
 
         /// <summary>
@@ -244,7 +475,10 @@ namespace Exiled.API.Extensions
         /// <param name="origin">The direction of the blood decal.</param>
         /// <param name="roleTypeId">The RoleTypeId from who blood come from.</param>
         /// <param name="gettingShotSoundIndex">The sound than player get when getting shot.</param>
+        [Obsolete("Use Player::SpawnBlood(Vector3, Vector3) instead.")]
+#pragma warning disable IDE0060 // TODO: Deleted the unused param
         public static void PlaceBlood(this Player player, Vector3 position, Vector3 origin, RoleTypeId roleTypeId, int gettingShotSoundIndex)
+#pragma warning restore IDE0060
         {
             if (!roleTypeId.TryGetRoleBase(out PlayerRoleBase playerRoleBase) || playerRoleBase is not IBleedableRole)
                 return;
@@ -281,7 +515,8 @@ namespace Exiled.API.Extensions
                         writer.WriteRelativePosition(new RelativePosition(origin));
                         writer.WriteByte(255);
                         writer.WriteRoleType(RoleTypeId.ClassD);
-                    }, true);
+                    },
+                    true);
 #pragma warning restore SA1116 // Split parameters should start on line after declaration
                 }
 
@@ -403,7 +638,7 @@ namespace Exiled.API.Extensions
                 if (target != player || !isRisky)
                     target.Connection.Send(writer.ToArraySegment());
                 else
-                    Log.Error($"Prevent Seld-Desync of {player.Nickname} with {type}");
+                    Log.Error($"Prevent Self-Desync of {player.Nickname} with {type}");
             }
 
             NetworkWriterPool.Return(writer);
@@ -476,8 +711,8 @@ namespace Exiled.API.Extensions
         /// </summary>
         /// <param name="target">The player who will become not spectatable.</param>
         /// <param name="viewer">The viewer who will see this change.</param>
-        /// <param name="value">The faked value.</param>
-        public static void SetFakeSpectatable(Player target, Player viewer, bool value) => viewer.Connection.Send(new SpectatableVisibilityMessages.SpectatableVisibilityMessage(target.ReferenceHub, value));
+        /// <param name="isforceHidden">Determine if the player will be force hidden.</param>
+        public static void SetFakeSpectatable(Player target, Player viewer, bool isforceHidden) => viewer.Connection.Send(new SpectatableVisibilityMessages.SpectatableVisibilityMessage(target.ReferenceHub, isforceHidden));
 
         /// <summary>
         /// Makes the server resend a message to all clients updating a keycards details to current values.
@@ -531,7 +766,9 @@ namespace Exiled.API.Extensions
         /// <param name="makeHold">Same on <see cref="Cassie.MessageTranslated(string, string, bool, bool, bool)"/>'s isHeld.</param>
         /// <param name="makeNoise">Same on <see cref="Cassie.MessageTranslated(string, string, bool, bool, bool)"/>'s isNoisy.</param>
         /// <param name="isSubtitles">Same on <see cref="Cassie.MessageTranslated(string, string, bool, bool, bool)"/>'s isSubtitles.</param>
+#pragma warning disable IDE0060 // TODO: Deleted the unused param
         public static void MessageTranslated(this Player player, string words, string translation, string customSubtitles, bool makeHold = false, bool makeNoise = true, bool isSubtitles = true)
+#pragma warning restore IDE0060
         {
             CassieAnnouncement announcement = new(new CassieTtsPayload(words, customSubtitles, makeHold), 0, makeNoise ? 1 : 0);
 
@@ -539,27 +776,6 @@ namespace Exiled.API.Extensions
             announcement.OnStartedPlaying();
 
             announcement.Payload.SendToHubsConditionally(hub => hub == player.ReferenceHub);
-        }
-
-        /// <summary>
-        /// Moves object for the player.
-        /// </summary>
-        /// <param name="player">Target to send.</param>
-        /// <param name="identity">The <see cref="Mirror.NetworkIdentity"/> to move.</param>
-        /// <param name="pos">The position to change.</param>
-        public static void MoveNetworkIdentityObject(this Player player, NetworkIdentity identity, Vector3 pos)
-        {
-            if (identity == null)
-                return;
-
-            identity.gameObject.transform.position = pos;
-            ObjectDestroyMessage objectDestroyMessage = new()
-            {
-                netId = identity.netId,
-            };
-
-            player.Connection.Send(objectDestroyMessage, 0);
-            SendSpawnMessageMethodInfo?.Invoke(null, new object[] { identity, player.Connection });
         }
 
         /// <summary>
@@ -592,6 +808,58 @@ namespace Exiled.API.Extensions
         }
 
         /// <summary>
+        /// Sends a spawn message for the specified <see cref="NetworkIdentity"/> to the given <see cref="Player"/>.
+        /// </summary>
+        /// <param name="player">The player who should receive the spawn message.</param>
+        /// <param name="identity">The <see cref="NetworkIdentity"/> to spawn.</param>
+        public static void SpawnNetworkIdentity(this Player player, NetworkIdentity identity) => SendSpawnMessageMethodInfo?.Invoke(null, new object[] { identity, player.Connection });
+
+        /// <summary>
+        /// Sends a destroy message for the specified <see cref="NetworkIdentity"/> to the given <see cref="Player"/>.
+        /// </summary>
+        /// <param name="player">The player who should receive the destroy message.</param>
+        /// <param name="identity">The <see cref="NetworkIdentity"/> to destroy.</param>
+        public static void DestroyNetworkIdentity(this Player player, NetworkIdentity identity) => player.DestroyNetworkId(identity.netId);
+
+        /// <summary>
+        /// Sends a destroy message for the specified network ID to the given <see cref="Player"/>.
+        /// </summary>
+        /// <param name="player">The player who should receive the destroy message.</param>
+        /// <param name="netId">The network ID of the object to destroy.</param>
+        public static void DestroyNetworkId(this Player player, uint netId) => player.Connection.Send(new ObjectDestroyMessage() { netId = netId });
+
+        /// <summary>
+        /// Respawns the specified <see cref="NetworkIdentity"/> for the given <see cref="Player"/>.
+        /// This sends a destroy message followed by a spawn message to the player's client.
+        /// </summary>
+        /// <param name="player">The player who should receive the respawn messages.</param>
+        /// <param name="identity">The <see cref="NetworkIdentity"/> to respawn.</param>
+        public static void RespawnNetworkIdentity(this Player player, NetworkIdentity identity)
+        {
+            player.DestroyNetworkIdentity(identity);
+            player.SpawnNetworkIdentity(identity);
+        }
+
+        /// <summary>
+        /// Moves object for the player.
+        /// </summary>
+        /// <param name="player">Target to send.</param>
+        /// <param name="identity">The <see cref="Mirror.NetworkIdentity"/> to move.</param>
+        /// <param name="pos">The position to change.</param>
+        public static void MoveNetworkIdentityObject(this Player player, NetworkIdentity identity, Vector3 pos)
+        {
+            if (identity == null)
+                return;
+
+            Vector3 originalPosition = identity.transform.position;
+            identity.transform.position = pos;
+
+            player.RespawnNetworkIdentity(identity);
+
+            identity.transform.position = originalPosition;
+        }
+
+        /// <summary>
         /// Scales an object for the specified player.
         /// </summary>
         /// <param name="player">Target to send.</param>
@@ -602,14 +870,135 @@ namespace Exiled.API.Extensions
             if (identity == null)
                 return;
 
-            identity.gameObject.transform.localScale = scale;
-            ObjectDestroyMessage objectDestroyMessage = new()
+            Vector3 originalScale = identity.transform.localScale;
+            identity.transform.localScale = scale;
+
+            player.RespawnNetworkIdentity(identity);
+
+            identity.transform.localScale = originalScale;
+        }
+
+        /// <summary>
+        /// Edit <see cref="NetworkIdentity"/>'s parameter and sync.
+        /// </summary>
+        /// <param name="player">Target to send.</param>
+        /// <param name="identity">Target object.</param>
+        /// <param name="customAction">Edit function.</param>
+        /// <param name="resetAction">Reback function for reset object to original state.</param>
+        public static void EditNetworkObject(this Player player, NetworkIdentity identity, Action<NetworkIdentity> customAction, Action<NetworkIdentity> resetAction)
+        {
+            if (identity == null)
+                return;
+
+            customAction?.Invoke(identity);
+
+            player.RespawnNetworkIdentity(identity);
+
+            resetAction?.Invoke(identity);
+        }
+
+        /// <summary>
+        /// Sends a spawn message for the specified <see cref="NetworkIdentity"/> to a targeted collection of players.
+        /// </summary>
+        /// <param name="identity">The <see cref="NetworkIdentity"/> to serialize and spawn.</param>
+        /// <param name="players">The collection of <see cref="Player"/> who will receive the spawn message.</param>
+        public static void SendSpawnMessageForPlayers(this NetworkIdentity identity, IEnumerable<Player> players)
+        {
+            if (identity == null || identity.netId == 0 || !players.Any())
+                return;
+
+            using NetworkWriterPooled ownerWriter = NetworkWriterPool.Get();
+            using NetworkWriterPooled observersWriter = NetworkWriterPool.Get();
+
+            SerializeServerMethodInfo?.Invoke(identity, new object[] { true, ownerWriter, observersWriter });
+
+            ArraySegment<byte> ownerPayload = ownerWriter.ToArraySegment();
+            ArraySegment<byte> observerPayload = observersWriter.ToArraySegment();
+
+            SpawnMessage spawnMessage = new()
             {
                 netId = identity.netId,
+                isLocalPlayer = false,
+                isOwner = false,
+                sceneId = identity.sceneId,
+                assetId = identity.assetId,
+                position = identity.transform.localPosition,
+                rotation = identity.transform.localRotation,
+                scale = identity.transform.localScale,
+                payload = observerPayload,
             };
 
-            player.Connection.Send(objectDestroyMessage, 0);
-            SendSpawnMessageMethodInfo?.Invoke(null, new object[] { identity, player.Connection });
+            using NetworkWriterPooled prepackedObserverWriter = NetworkWriterPool.Get();
+            NetworkMessages.Pack(spawnMessage, prepackedObserverWriter);
+            ArraySegment<byte> segment = prepackedObserverWriter.ToArraySegment();
+
+            foreach (Player player in players)
+            {
+                if (!player.IsConnected)
+                    continue;
+
+                bool isOwner = identity.connectionToClient == player.Connection;
+
+                if (!isOwner)
+                {
+                    player.Connection.Send(segment);
+                    continue;
+                }
+
+                SpawnMessage ownerMessage = spawnMessage;
+                ownerMessage.isOwner = true;
+                ownerMessage.isLocalPlayer = player.NetworkIdentity == identity;
+                ownerMessage.payload = ownerPayload;
+
+                player.Connection.Send(ownerMessage);
+            }
+        }
+
+        /// <summary>
+        /// Sends a destroy message for the specified <see cref="NetworkIdentity"/> to a targeted collection of players.
+        /// </summary>
+        /// <param name="identity">The <see cref="NetworkIdentity"/> to destroy on the clients.</param>
+        /// <param name="players">The collection of <see cref="Player"/> who will receive the destroy message.</param>
+        public static void DestroyNetworkIdentityForPlayers(this NetworkIdentity identity, IEnumerable<Player> players)
+        {
+            if (identity == null || identity.netId == 0 || !players.Any())
+                return;
+
+            using NetworkWriterPooled writer = NetworkWriterPool.Get();
+            NetworkMessages.Pack(new ObjectDestroyMessage() { netId = identity.netId }, writer);
+            ArraySegment<byte> segment = writer.ToArraySegment();
+
+            foreach (Player player in players)
+            {
+                if (!player.IsConnected)
+                    continue;
+
+                player.Connection.Send(segment);
+            }
+        }
+
+        /// <summary>
+        /// Respawns the specified <see cref="NetworkIdentity"/> by respawning its underlying <see cref="GameObject"/> on the server.
+        /// </summary>
+        /// <param name="identity">The <see cref="NetworkIdentity"/> to respawn.</param>
+        public static void RespawnNetworkIdentity(this NetworkIdentity identity)
+        {
+            if (identity == null || identity.netId == 0)
+                return;
+
+            NetworkServer.SendToReady(new ObjectDestroyMessage() { netId = identity.netId });
+            identity.SendSpawnMessageForPlayers(Player.List);
+        }
+
+        /// <summary>
+        /// Respawns a networked <see cref="GameObject"/> on the server by unspawning and respawning it.
+        /// This forces Mirror to reinitialize the network state for the object.
+        /// </summary>
+        /// <param name="gameObject">The networked GameObject to respawn.</param>
+        public static void RespawnNetworkObject(this GameObject gameObject)
+        {
+            NetworkServer.UnSpawn(gameObject);
+            NetworkServer.Spawn(gameObject);
         }
 
         /// <summary>
@@ -622,17 +1011,8 @@ namespace Exiled.API.Extensions
             if (identity == null)
                 return;
 
-            identity.gameObject.transform.position = pos;
-            ObjectDestroyMessage objectDestroyMessage = new()
-            {
-                netId = identity.netId,
-            };
-
-            foreach (Player ply in Player.List)
-            {
-                ply.Connection.Send(objectDestroyMessage, 0);
-                SendSpawnMessageMethodInfo?.Invoke(null, new object[] { identity, ply.Connection });
-            }
+            identity.transform.position = pos;
+            RespawnNetworkIdentity(identity);
         }
 
         /// <summary>
@@ -645,17 +1025,19 @@ namespace Exiled.API.Extensions
             if (identity == null)
                 return;
 
-            identity.gameObject.transform.localScale = scale;
-            ObjectDestroyMessage objectDestroyMessage = new()
-            {
-                netId = identity.netId,
-            };
+            identity.transform.localScale = scale;
+            RespawnNetworkIdentity(identity);
+        }
 
-            foreach (Player ply in Player.List)
-            {
-                ply.Connection.Send(objectDestroyMessage, 0);
-                SendSpawnMessageMethodInfo?.Invoke(null, new object[] { identity, ply.Connection });
-            }
+        /// <summary>
+        /// Edit <see cref="NetworkIdentity"/>'s parameter and sync.
+        /// </summary>
+        /// <param name="identity">The <see cref="NetworkIdentity"/> to edit.</param>
+        /// <param name="customAction">Edit function.</param>
+        public static void EditNetworkObject(this NetworkIdentity identity, Action<NetworkIdentity> customAction)
+        {
+            customAction.Invoke(identity);
+            RespawnNetworkIdentity(identity);
         }
 
         /// <summary>
@@ -717,7 +1099,12 @@ namespace Exiled.API.Extensions
         {
             if (behaviorOwner == null)
                 return;
-            SetDirtyBitsMethodInfo.Invoke(behaviorOwner.gameObject.GetComponent(targetType), new object[] { SyncVarDirtyBits[$"{targetType.Name}.{propertyName}"] });
+
+            if (behaviorOwner.gameObject.GetComponent(targetType) is not NetworkBehaviour behaviour)
+                return;
+
+            ulong dirtyBit = SyncVarDirtyBits[$"{targetType.Name}.{propertyName}"];
+            behaviour.SetSyncVarDirtyBit(dirtyBit);
         }
 
         /// <summary>
@@ -777,30 +1164,9 @@ namespace Exiled.API.Extensions
             NetworkWriterPooled writer = NetworkWriterPool.Get();
             NetworkWriterPooled writer2 = NetworkWriterPool.Get();
             MakeCustomSyncWriter(behaviorOwner, targetType, customAction, null, writer, writer2);
-            target.ReferenceHub.networkIdentity.connectionToClient.Send(new EntityStateMessage() { netId = behaviorOwner.netId, payload = writer.ToArraySegment() });
+            target.Connection.Send(new EntityStateMessage() { netId = behaviorOwner.netId, payload = writer.ToArraySegment() });
             NetworkWriterPool.Return(writer);
             NetworkWriterPool.Return(writer2);
-        }
-
-        /// <summary>
-        /// Edit <see cref="NetworkIdentity"/>'s parameter and sync.
-        /// </summary>
-        /// <param name="identity">Target object.</param>
-        /// <param name="customAction">Edit function.</param>
-        public static void EditNetworkObject(NetworkIdentity identity, Action<NetworkIdentity> customAction)
-        {
-            customAction.Invoke(identity);
-
-            ObjectDestroyMessage objectDestroyMessage = new()
-            {
-                netId = identity.netId,
-            };
-
-            foreach (Player player in Player.List)
-            {
-                player.Connection.Send(objectDestroyMessage, 0);
-                SendSpawnMessageMethodInfo.Invoke(null, new object[] { identity, player.Connection });
-            }
         }
 
         // Get components index in identity.(private)
@@ -849,7 +1215,7 @@ namespace Exiled.API.Extensions
             // Write syncdata position data
             int position3 = owner.Position;
             owner.Position = position;
-            owner.WriteByte((byte)(position3 - position2 & 255));
+            owner.WriteByte((byte)((position3 - position2) & 255));
             owner.Position = position3;
 
             // Copy owner to observer

@@ -7,7 +7,6 @@
 
 namespace Exiled.API.Features.Pickups
 {
-    using System;
     using System.Collections.Generic;
     using System.Linq;
 
@@ -24,7 +23,9 @@ namespace Exiled.API.Features.Pickups
     using InventorySystem.Items.Usables.Scp244;
 
     using Mirror;
+
     using RelativePositioning;
+
     using UnityEngine;
 
     using BaseAmmoPickup = InventorySystem.Items.Firearms.Ammo.AmmoPickup;
@@ -369,14 +370,14 @@ namespace Exiled.API.Features.Pickups
         /// </summary>
         /// <param name="gameObject">The <see cref="UnityEngine.GameObject"/> to check.</param>
         /// <returns>The <see cref="Pickup"/> given the specified <see cref="UnityEngine.GameObject"/>.</returns>
-        public static Pickup Get(GameObject gameObject) => !gameObject || !gameObject.TryGetComponent(out ItemPickupBase ipb) ? null : Get(ipb);
+        public static Pickup Get(GameObject gameObject) => !gameObject ? null : Get(gameObject.GetComponentInParent<ItemPickupBase>(!gameObject.activeSelf));
 
         /// <summary>
         /// Gets an <see cref="IEnumerable{T}"/> of <see cref="Pickup"/> containing all existing <see cref="ItemPickupBase"/> instances given an <see cref="IEnumerable{T}"/> of <see cref="ItemPickupBase"/>.
         /// </summary>
         /// <param name="pickups">An <see cref="IEnumerable{T}"/> of <see cref="ItemPickupBase"/> to convert into an <see cref="IEnumerable{T}"/> of <see cref="Pickup"/>.</param>
         /// <returns>An <see cref="IEnumerable{T}"/> of <see cref="Pickup"/> containing all existing <see cref="ItemPickupBase"/> instances.</returns>
-        public static IEnumerable<Pickup> Get(IEnumerable<ItemPickupBase> pickups) => pickups.Select(ipb => Get(ipb));
+        public static IEnumerable<Pickup> Get(IEnumerable<ItemPickupBase> pickups) => pickups.Select(Get);
 
         /// <summary>
         /// Gets an <see cref="IEnumerable{T}"/> of <see cref="Pickup"/> containing all existing <see cref="ItemPickupBase"/> instances given an <see cref="ItemType"/>.

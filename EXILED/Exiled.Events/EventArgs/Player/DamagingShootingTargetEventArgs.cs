@@ -9,9 +9,9 @@ namespace Exiled.Events.EventArgs.Player
 {
     using AdminToys;
 
-    using API.Features;
-    using API.Features.Items;
-    using API.Features.Toys;
+    using Exiled.API.Features;
+    using Exiled.API.Features.Items;
+    using Exiled.API.Features.Toys;
 
     using Interfaces;
 
@@ -53,7 +53,7 @@ namespace Exiled.Events.EventArgs.Player
             Player = player;
             Amount = damage;
             Distance = distance;
-            ShootingTarget = ShootingTargetToy.Get(shootingTarget);
+            ShootingTarget = AdminToy.Get<ShootingTargetToy>(shootingTarget);
             Item = player?.CurrentItem;
             DamageHandler = damageHandler as AttackerDamageHandler;
             HitLocation = hitLocation;

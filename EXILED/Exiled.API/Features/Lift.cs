@@ -16,9 +16,12 @@ namespace Exiled.API.Features
     using Exiled.API.Features.Doors;
     using Exiled.API.Features.Pools;
     using Exiled.API.Interfaces;
+
     using Interactables.Interobjects;
     using Interactables.Interobjects.DoorUtils;
+
     using UnityEngine;
+
     using Utils;
 
     using static Interactables.Interobjects.ElevatorChamber;
@@ -83,7 +86,7 @@ namespace Exiled.API.Features
         /// <summary>
         /// Gets a value of the internal doors list.
         /// </summary>
-        public IReadOnlyCollection<Doors.ElevatorDoor> Doors => internalDoorsList.Select(x => Door.Get<Doors.ElevatorDoor>(x)).ToList();
+        public IReadOnlyCollection<Doors.ElevatorDoor> Doors => internalDoorsList.Select(Door.Get<Doors.ElevatorDoor>).ToList();
 
         /// <summary>
         /// Gets a <see cref="IEnumerable{T}"/> of <see cref="Player"/> in the <see cref="Room"/>.
@@ -229,7 +232,16 @@ namespace Exiled.API.Features
         /// </summary>
         /// <param name="elevator">The <see cref="ElevatorChamber"/> instance.</param>
         /// <returns>A <see cref="Lift"/> or <see langword="null"/> if not found.</returns>
-        public static Lift Get(ElevatorChamber elevator) => ElevatorChamberToLift.TryGetValue(elevator, out Lift lift) ? lift : new(elevator);
+        public static Lift Get(ElevatorChamber elevator)
+        {
+            if (elevator == null)
+                return null;
+
+            if (ElevatorChamberToLift.TryGetValue(elevator, out Lift lift))
+                return lift;
+
+            return new(elevator);
+        }
 
         /// <summary>
         /// Gets the <see cref="Lift"/> corresponding to the specified <see cref="ElevatorType"/>, if any.
@@ -257,7 +269,7 @@ namespace Exiled.API.Features
         /// </summary>
         /// <param name="gameObject">The <see cref="UnityEngine.GameObject"/>.</param>
         /// <returns>A <see cref="Lift"/> or <see langword="null"/> if not found.</returns>
-        public static Lift Get(GameObject gameObject) => Get(lift => lift.GameObject == gameObject).FirstOrDefault();
+        public static Lift Get(GameObject gameObject) => !gameObject ? null : Get(gameObject.GetComponentInParent<ElevatorChamber>(false));
 
         /// <summary>
         /// Gets the <see cref="Lift"/> belonging to the <see cref="Vector3"/>, if any.

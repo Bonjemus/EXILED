@@ -15,22 +15,40 @@ namespace Exiled.API.Features
     using System.Linq;
 
     using CommandSystem.Commands.RemoteAdmin.Cleanup;
+
     using Decals;
+
     using Enums;
+
     using Exiled.API.Extensions;
-    using Exiled.API.Features.Hazards;
     using Exiled.API.Features.Items.Keycards;
     using Exiled.API.Features.Pickups;
-    using Exiled.API.Features.Toys;
+
+    using Interactables.Interobjects;
+
     using InventorySystem;
+    using InventorySystem.Items;
+    using InventorySystem.Items.Autosync;
+    using InventorySystem.Items.Firearms.Modules;
     using InventorySystem.Items.Pickups;
     using InventorySystem.Items.ThrowableProjectiles;
+
     using Items;
+
     using LightContainmentZoneDecontamination;
+
     using MapGeneration;
+
+    using Mirror;
+
     using PlayerRoles.Ragdolls;
+
+    using RelativePositioning;
+
     using RemoteAdmin;
+
     using UnityEngine;
+
     using Utils;
     using Utils.Networking;
 
@@ -45,10 +63,6 @@ namespace Exiled.API.Features
         /// Gets a list of <see cref="PocketDimensionTeleport"/>s on the map.
         /// </summary>
         internal static List<PocketDimensionTeleport> TeleportsValue = new();
-
-        private static AmbientSoundPlayer ambientSoundPlayer;
-
-        private static SqueakSpawner squeakSpawner;
 
         /// <summary>
         /// Gets a value indicating whether decontamination has begun in the light containment zone.
@@ -123,12 +137,12 @@ namespace Exiled.API.Features
         /// <summary>
         /// Gets the <see cref="global::AmbientSoundPlayer"/>.
         /// </summary>
-        public static AmbientSoundPlayer AmbientSoundPlayer => ambientSoundPlayer ??= ReferenceHub._hostHub.GetComponent<AmbientSoundPlayer>();
+        public static AmbientSoundPlayer AmbientSoundPlayer => field ??= ReferenceHub._hostHub.GetComponent<AmbientSoundPlayer>();
 
         /// <summary>
         /// Gets the <see cref="global::SqueakSpawner"/>.
         /// </summary>
-        public static SqueakSpawner SqueakSpawner => squeakSpawner ??= Object.FindFirstObjectByType<SqueakSpawner>();
+        public static SqueakSpawner SqueakSpawner => field ??= Object.FindFirstObjectByType<SqueakSpawner>();
 
         /// <summary>
         /// Sends a staff message to all players online with <see cref="PlayerPermissions.AdminChat"/> permission.
@@ -196,6 +210,96 @@ namespace Exiled.API.Features
         }
 
         /// <summary>
+        /// Show the Round Summary screen globally for all players.
+        /// </summary>
+        /// <param name="initialStats">The statistics <see cref="RoundSummary.SumInfo_ClassList"/> at the beginning of the round.</param>
+        /// <param name="finalStats">The statistics <see cref="RoundSummary.SumInfo_ClassList"/> to be displayed as the final result.</param>
+        /// <param name="leadingTeam">The team to be declared as the winner <see cref="RoundSummary.LeadingTeam"/>.</param>
+        /// <param name="escapedClassDCount">The number of Class-D personnel shown as escaped.</param>
+        /// <param name="escapedScientistCount">The number of Scientists shown as escaped.</param>
+        /// <param name="totalScpKills">The total number of kills by SCPs to be displayed.</param>
+        /// <param name="nextRoundTime">The time in seconds displayed as the next round time.</param>
+        /// <param name="totalRoundDuration">The total elapsed duration of the round in seconds.</param>
+        /// <returns><c>true</c> if the RoundSummary singleton was found and the RPC was sent; otherwise, <c>false</c>.</returns>
+        public static bool ShowRoundSummary(RoundSummary.SumInfo_ClassList initialStats, RoundSummary.SumInfo_ClassList finalStats, RoundSummary.LeadingTeam leadingTeam, int escapedClassDCount, int escapedScientistCount, int totalScpKills, int nextRoundTime, int totalRoundDuration)
+        {
+            if (!RoundSummary._singletonSet)
+                return false;
+
+            RoundSummary.singleton.RpcShowRoundSummary(initialStats, finalStats, leadingTeam, escapedClassDCount, escapedScientistCount, totalScpKills, nextRoundTime, totalRoundDuration);
+            return true;
+        }
+
+        /// <summary>
+        /// Hides the Round Summary screen for all players.
+        /// </summary>
+        /// <returns><c>true</c> if the RoundSummary singleton was found and the RPC was sent; otherwise, <c>false</c>.</returns>
+        public static bool HideRoundSummary()
+        {
+            if (!RoundSummary._singletonSet)
+                return false;
+
+            RoundSummary.singleton.RpcHideRoundSummary();
+            return true;
+        }
+
+        /// <summary>
+        /// Triggers the end-of-round screen dimming effect (fade to black) globally for all players.
+        /// </summary>
+        /// <returns><c>true</c> if the RoundSummary singleton is active; otherwise, <c>false</c>.</returns>
+        public static bool DimScreens()
+        {
+            if (!RoundSummary._singletonSet)
+                return false;
+
+            RoundSummary.singleton.RpcDimScreen();
+            return true;
+        }
+
+        /// <summary>
+        /// Reverses the screen dimming effect, restoring normal visibility globally for all players.
+        /// </summary>
+        /// <returns><c>true</c> if the RoundSummary singleton is active; otherwise, <c>false</c>.</returns>
+        public static bool UndimScreens()
+        {
+            if (!RoundSummary._singletonSet)
+                return false;
+
+            RoundSummary.singleton.RpcUndimScreen();
+            return true;
+        }
+
+        /// <summary>
+        /// Triggers the Alpha Warhead atmospheric effect (orange fog/tint) globally for all players.
+        /// </summary>
+        /// <param name="achieve">If set to <c>true</c>, idk what is this maybe achivement.</param>
+        /// <returns><c>true</c> if the AlphaWarheadController is set; otherwise, <c>false</c>.</returns>
+        public static bool WarheadExplosionEffect(bool achieve = false)
+        {
+            if (!AlphaWarheadController.SingletonSet)
+                return false;
+
+            AlphaWarheadController.Singleton.RpcShake(achieve);
+            return true;
+        }
+
+        /// <summary>
+        /// Plays the elevator squish sound effect at the specified position for all players.
+        /// </summary>
+        /// <param name="position">The world position where the sound will be played.</param>
+        /// <returns><c>true</c> if an ElevatorSquish instance was found; otherwise, <c>false</c>.</returns>
+        public static bool PlaySquishSound(Vector3 position)
+        {
+            ElevatorSquish squishInstance = Object.FindFirstObjectByType<ElevatorSquish>();
+
+            if (squishInstance == null)
+                return false;
+
+            squishInstance.PlaySquishSound(position);
+            return true;
+        }
+
+        /// <summary>
         /// Clears all <see cref="Player">players</see>' broadcasts.
         /// </summary>
         public static void ClearBroadcasts() => Server.Broadcast.RpcClearElements();
@@ -203,7 +307,7 @@ namespace Exiled.API.Features
         /// <summary>
         /// Forces the light containment zone decontamination process.
         /// </summary>
-        public static void StartDecontamination() => DecontaminationController.Singleton.FinishDecontamination();
+        public static void StartDecontamination() => DecontaminationController.Singleton.DecontaminationOverride = DecontaminationController.DecontaminationStatus.Forced;
 
         /// <summary>
         /// Turns on all lights in the facility.
@@ -339,12 +443,64 @@ namespace Exiled.API.Features
         public static void Clean(DecalPoolType decalType) => Clean(decalType, int.MaxValue);
 
         /// <summary>
-        /// Places a blood decal.
+        /// Places a blood decal using a raycast.
+        /// </summary>
+        /// <param name="position">The origin position of the raycast.</param>
+        /// <param name="direction">The direction in which the raycast is fired to detect a surface.</param>
+        public static void PlaceBlood(Vector3 position, Vector3 direction)
+        {
+            if (Physics.Raycast(position, direction, out RaycastHit hitInfo, ImpactEffectsModule.ReceivingLayers))
+                SpawnBlood(hitInfo.point + (hitInfo.normal * Decal.SurfaceDistance), -hitInfo.normal);
+        }
+
+        /// <summary>
+        /// Spawns a blood decal.
         /// </summary>
         /// <param name="position">The position of the blood decal.</param>
-        /// <param name="direction">The direction of the blood decal.</param>
-        [Obsolete("Use PlaceBlood(this Player, Vector3, Vector3, RoleTypeId, int) instead.")]
-        public static void PlaceBlood(Vector3 position, Vector3 direction) => _ = 0;
+        /// <param name="sourcePosition">The raycast origin used to determine the decal's orientation.</param>
+        /// <returns><see langword="true"/> if the blood decal was successfully spawned; otherwise, <see langword="false"/>.</returns>
+        public static bool SpawnBlood(Vector3 position, Vector3 sourcePosition) => SpawnDecal(position, sourcePosition, DecalPoolType.Blood, FirearmType.Com15);
+
+        /// <summary>
+        /// Spawns a decal.
+        /// </summary>
+        /// <param name="position">The position of the decal.</param>
+        /// <param name="sourcePosition">The raycast origin used to determine the decal's orientation.</param>
+        /// <param name="decalType">The <see cref="Decals.DecalPoolType"/>.</param>
+        /// <param name="firearmType">The <see cref="Enums.FirearmType"/> to use.</param>
+        /// <returns><see langword="true"/> if the decal was successfully spawned; otherwise, <see langword="false"/>.</returns>
+        public static bool SpawnDecal(Vector3 position, Vector3 sourcePosition, DecalPoolType decalType, FirearmType firearmType = FirearmType.Com15)
+        {
+            if (!InventoryItemLoader.TryGetItem(firearmType.GetItemType(), out ItemBase itemBase))
+            {
+                Log.Error($"Failed to spawn decal: Could not find a Firearm for {firearmType}.");
+                return false;
+            }
+
+            Firearm firearm = Item.Get<Firearm>(itemBase);
+            if (firearm == null)
+            {
+                Log.Error($"Failed to spawn decal: Could not find a Firearm for {firearmType}.");
+                return false;
+            }
+
+            ImpactEffectsModule impactEffectsModule = firearm.ImpactEffectsModule;
+            if (impactEffectsModule == null)
+            {
+                Log.Error($"Failed to spawn decal: Could not find an ImpactEffectsModule for {firearmType}.");
+                return false;
+            }
+
+            impactEffectsModule.SendRpc(writer =>
+            {
+                writer.WriteSubheader(ImpactEffectsModule.RpcType.ImpactDecal);
+                writer.WriteByte((byte)decalType);
+                writer.WriteRelativePosition(new RelativePosition(position));
+                writer.WriteRelativePosition(new RelativePosition(sourcePosition));
+            });
+
+            return true;
+        }
 
         /// <summary>
         /// Gets all the near cameras.

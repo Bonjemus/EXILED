@@ -16,8 +16,11 @@ namespace Exiled.API.Features.Lockers
     using Exiled.API.Extensions;
     using Exiled.API.Features.Pickups;
     using Exiled.API.Interfaces;
+
     using InventorySystem.Items.Pickups;
+
     using MapGeneration.Distributors;
+
     using UnityEngine;
 
     /// <summary>
@@ -292,10 +295,25 @@ namespace Exiled.API.Features.Lockers
         }
 
         /// <summary>
+        /// Returns the Door in a human-readable format.
+        /// </summary>
+        /// <returns>A string containing Door-related data.</returns>
+        public override string ToString() => $"({string.Join(",", AcceptableTypes)}) [{string.Join(",", ToBeSpawned)}] *{Cooldown}* ={IsOpen}=";
+
+        /// <summary>
         /// Gets the chamber by its <see cref="LockerChamber"/>.
         /// </summary>
         /// <param name="chamber"><see cref="LockerChamber"/>.</param>
         /// <returns><see cref="Chamber"/>.</returns>
-        internal static Chamber Get(LockerChamber chamber) => chamber == null ? null : Chambers.TryGetValue(chamber, out Chamber chmb) ? chmb : new(chamber, Locker.Get(x => x.Chambers.Any(x => x.Base == chamber)).FirstOrDefault());
+        internal static Chamber Get(LockerChamber chamber)
+        {
+            if (chamber == null)
+                return null;
+
+            if (Chambers.TryGetValue(chamber, out Chamber chmb))
+                return chmb;
+
+            return new(chamber, Locker.Get(x => x.Chambers.Any(x => x.Base == chamber)).FirstOrDefault());
+        }
     }
 }

@@ -14,8 +14,11 @@ namespace Exiled.API.Features.Hazards
     using Exiled.API.Enums;
     using Exiled.API.Features.Core;
     using Exiled.API.Interfaces;
+
     using global::Hazards;
+
     using PlayerRoles.PlayableScps.Scp939;
+
     using UnityEngine;
 
     /// <summary>
@@ -121,13 +124,13 @@ namespace Exiled.API.Features.Hazards
         public static Hazard Get(EnvironmentalHazard environmentalHazard) =>
             EnvironmentalHazardToHazard.TryGetValue(environmentalHazard, out Hazard hazard) ? hazard
             : environmentalHazard switch
-        {
-            TantrumEnvironmentalHazard tantrumEnvironmentalHazard => new TantrumHazard(tantrumEnvironmentalHazard),
-            Scp939AmnesticCloudInstance scp939AmnesticCloudInstance => new AmnesticCloudHazard(scp939AmnesticCloudInstance),
-            SinkholeEnvironmentalHazard sinkholeEnvironmentalHazard => new SinkholeHazard(sinkholeEnvironmentalHazard),
-            global::Hazards.TemporaryHazard temporaryHazard => new TemporaryHazard(temporaryHazard),
-            _ => new Hazard(environmentalHazard)
-        };
+            {
+                TantrumEnvironmentalHazard tantrumEnvironmentalHazard => new TantrumHazard(tantrumEnvironmentalHazard),
+                Scp939AmnesticCloudInstance scp939AmnesticCloudInstance => new AmnesticCloudHazard(scp939AmnesticCloudInstance),
+                SinkholeEnvironmentalHazard sinkholeEnvironmentalHazard => new SinkholeHazard(sinkholeEnvironmentalHazard),
+                global::Hazards.TemporaryHazard temporaryHazard => new TemporaryHazard(temporaryHazard),
+                _ => new Hazard(environmentalHazard),
+            };
 
         /// <summary>
         /// Gets the <see cref="Hazard"/> by <see cref="EnvironmentalHazard"/>.
@@ -148,9 +151,9 @@ namespace Exiled.API.Features.Hazards
         /// <summary>
         /// Gets the hazard by it's <see cref="GameObject"/>.
         /// </summary>
-        /// <param name="obj">Game object.</param>
-        /// <returns><see cref="Hazard"/> in given <see cref="Features.Room"/>.</returns>
-        public static Hazard Get(GameObject obj) => Get(x => x.Base.gameObject == obj).FirstOrDefault();
+        /// <param name="gameObject">Game object.</param>
+        /// <returns><see cref="Hazard"/> with given <see cref="GameObject"/>.</returns>
+        public static Hazard Get(GameObject gameObject) => !gameObject ? null : Get(gameObject.GetComponentInParent<EnvironmentalHazard>(false));
 
         /// <summary>
         /// Gets the <see cref="IEnumerable{T}"/> of <see cref="Hazard"/> based on predicate.

@@ -7,13 +7,14 @@
 
 namespace Exiled.CustomRoles.Events
 {
-    using System;
     using System.Collections.Generic;
 
     using Exiled.API.Enums;
     using Exiled.CustomRoles.API;
     using Exiled.CustomRoles.API.Features;
     using Exiled.Events.EventArgs.Player;
+
+    using UnityEngine;
 
     /// <summary>
     /// Handles general events for players.
@@ -88,7 +89,7 @@ namespace Exiled.CustomRoles.Events
 
             foreach (CustomRole role in CustomRole.Registered)
             {
-                if (!role.IgnoreSpawnSystem && role.Role == ev.Player.Role.Type && role.ValidSpawnReasons.Contains(ev.Reason) && role.SpawnChance > 0 && !role.Check(ev.Player) && (role.SpawnProperties is null || role.SpawnedPlayers < role.SpawnProperties.Limit))
+                if (!role.IgnoreSpawnSystem && role.Role == ev.Player.Role.Type && role.SpawnChance > 0 && role.ValidSpawnReasons.Contains(ev.Reason) && !role.Check(ev.Player) && (role.SpawnProperties is null || role.SpawnedPlayers < role.SpawnProperties.Limit) && (role.MinPlayers is 0 || Server.PlayerConnectedCount >= role.MinPlayers))
                 {
                     eligibleRoles.Add(role);
                     totalChance += role.SpawnChance;
@@ -98,7 +99,7 @@ namespace Exiled.CustomRoles.Events
             if (eligibleRoles.Count == 0)
                 return;
 
-            float lotterySize = Math.Max(100f, totalChance);
+            float lotterySize = Mathf.Max(100f, totalChance);
             float randomRoll = (float)Loader.Loader.Random.NextDouble() * lotterySize;
 
             if (randomRoll >= totalChance)
@@ -112,21 +113,9 @@ namespace Exiled.CustomRoles.Events
                     continue;
                 }
 
-                if (candidateRole.SpawnProperties is null)
-                {
-                    candidateRole.AddRole(ev.Player, ev.Reason, false, ev.SpawnFlags);
-                    break;
-                }
-
-                int newSpawnCount = candidateRole.SpawnedPlayers++;
-                if (newSpawnCount <= candidateRole.SpawnProperties.Limit)
-                {
-                    candidateRole.AddRole(ev.Player, ev.Reason, false, ev.SpawnFlags);
-                    break;
-                }
-
-                candidateRole.SpawnedPlayers--;
-                randomRoll -= candidateRole.SpawnChance;
+                candidateRole.SpawnedPlayers++;
+                candidateRole.AddRole(ev.Player, ev.Reason, false, ev.SpawnFlags);
+                break;
             }
         }
     }

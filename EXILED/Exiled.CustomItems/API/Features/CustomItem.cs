@@ -26,10 +26,15 @@ namespace Exiled.CustomItems.API.Features
     using Exiled.Events.EventArgs.Player;
     using Exiled.Events.EventArgs.Scp914;
     using Exiled.Loader;
+
     using InventorySystem.Items.Pickups;
+
     using MEC;
+
     using PlayerRoles;
+
     using UnityEngine;
+
     using YamlDotNet.Serialization;
 
     using static CustomItems;
@@ -547,7 +552,15 @@ namespace Exiled.CustomItems.API.Features
         /// <param name="position">The <see cref="Vector3"/> where the <see cref="CustomItem"/> will be spawned.</param>
         /// <param name="previousOwner">The <see cref="Pickup.PreviousOwner"/> of the item. Can be null.</param>
         /// <returns>The <see cref="Pickup"/> of the spawned <see cref="CustomItem"/>.</returns>
-        public virtual Pickup? Spawn(Vector3 position, Player? previousOwner = null) => Spawn(position, Item.Create(Type), previousOwner);
+        public virtual Pickup? Spawn(Vector3 position, Player? previousOwner = null)
+        {
+            Item item = Item.Create(Type);
+
+            Pickup? pickup = Spawn(position, item, previousOwner);
+
+            item.Destroy();
+            return pickup;
+        }
 
         /// <summary>
         /// Spawns the <see cref="CustomItem"/> in a specific position.
@@ -559,6 +572,7 @@ namespace Exiled.CustomItems.API.Features
         public virtual Pickup? Spawn(Vector3 position, Item item, Player? previousOwner = null)
         {
             Pickup? pickup = item.CreatePickup(position);
+
             pickup.Scale = Scale;
             pickup.Weight = Weight;
 

@@ -24,8 +24,11 @@ namespace Exiled.CustomRoles.API.Features
     using Exiled.CustomItems.API.Features;
     using Exiled.Events.EventArgs.Player;
     using Exiled.Loader;
+
     using InventorySystem.Configs;
+
     using MEC;
+
     using PlayerRoles;
 
     using UnityEngine;
@@ -52,6 +55,11 @@ namespace Exiled.CustomRoles.API.Features
         /// Gets a list of all registered custom roles.
         /// </summary>
         public static HashSet<CustomRole> Registered { get; } = new();
+
+        /// <summary>
+        /// Gets or sets a value indicating whether the role is enabled.
+        /// </summary>
+        public virtual bool IsEnabled { get; set; } = true;
 
         /// <summary>
         /// Gets or sets the custom RoleID of the role.
@@ -114,6 +122,11 @@ namespace Exiled.CustomRoles.API.Features
         /// Gets or sets the possible spawn locations for this role.
         /// </summary>
         public virtual SpawnProperties SpawnProperties { get; set; } = new();
+
+        /// <summary>
+        /// Gets or sets the minimum number of players connected needed in order to add the role.
+        /// </summary>
+        public virtual int MinPlayers { get; set; }
 
         /// <summary>
         /// Gets or sets a value indicating whether players keep their current position when gaining this role.
@@ -324,6 +337,41 @@ namespace Exiled.CustomRoles.API.Features
         }
 
         /// <summary>
+        /// Registers all the <see cref="CustomRole"/>'s present in the current plugin's config.
+        /// </summary>
+        /// <param name="source">The source containing the custom roles.</param>
+        /// <param name="ignoredRoles">An optional collection of <see cref="CustomRole"/>s to ignore during registration.</param>
+        /// <returns>A <see cref="IEnumerable{T}"/> of <see cref="CustomRole"/> which contains all registered <see cref="CustomRole"/>'s.</returns>
+        public static IEnumerable<CustomRole> RegisterRolesFromSource(object source, IEnumerable<CustomRole>? ignoredRoles = null)
+        {
+            List<CustomRole> roles = new();
+
+            if (source == null)
+                return roles;
+
+            HashSet<Type>? ignoredTypes = ignoredRoles?.Select(x => x.GetType()).ToHashSet();
+
+            PropertyInfo[] properties = source.GetType().GetProperties();
+
+            foreach (PropertyInfo property in properties)
+            {
+                if (!typeof(CustomRole).IsAssignableFrom(property.PropertyType))
+                    continue;
+
+                if (property.GetValue(source) is not CustomRole sourceRole)
+                    continue;
+
+                if (ignoredTypes != null && ignoredTypes.Contains(sourceRole.GetType()))
+                    continue;
+
+                if (sourceRole.TryRegister())
+                    roles.Add(sourceRole);
+            }
+
+            return roles;
+        }
+
+        /// <summary>
         /// Registers all the <see cref="CustomRole"/>'s present in the current assembly.
         /// </summary>
         /// <param name="skipReflection">Whether reflection is skipped (more efficient if you are not using your custom item classes as config objects).</param>
@@ -487,6 +535,41 @@ namespace Exiled.CustomRoles.API.Features
         public static IEnumerable<CustomRole> UnregisterRoles(IEnumerable<CustomRole> targetRoles, bool isIgnored = false) => UnregisterRoles(targetRoles.Select(x => x.GetType()), isIgnored);
 
         /// <summary>
+        /// Unregisters all the <see cref="CustomRole"/>'s present in the current plugin's config.
+        /// </summary>
+        /// <param name="source">The source containing the target roles.</param>
+        /// <param name="ignoredRoles">An optional collection of <see cref="CustomRole"/>s to ignore during unregisteration.</param>
+        /// <returns>A <see cref="IEnumerable{T}"/> of <see cref="CustomRole"/> which contains all unregistered <see cref="CustomRole"/>'s.</returns>
+        public static IEnumerable<CustomRole> UnregisterFromSource(object source, IEnumerable<CustomRole>? ignoredRoles = null)
+        {
+            List<CustomRole> roles = new();
+
+            if (source == null)
+                return roles;
+
+            HashSet<Type>? ignoredTypes = ignoredRoles?.Select(x => x.GetType()).ToHashSet();
+
+            PropertyInfo[] properties = source.GetType().GetProperties();
+
+            foreach (PropertyInfo property in properties)
+            {
+                if (!typeof(CustomRole).IsAssignableFrom(property.PropertyType))
+                    continue;
+
+                if (property.GetValue(source) is not CustomRole sourceRole)
+                    continue;
+
+                if (ignoredTypes != null && ignoredTypes.Contains(sourceRole.GetType()))
+                    continue;
+
+                if (sourceRole.TryUnregister())
+                    roles.Add(sourceRole);
+            }
+
+            return roles;
+        }
+
+        /// <summary>
         /// ResyncCustomRole Friendly Fire with Player (Append, or Overwrite).
         /// </summary>
         /// <param name="roleToSync"> <see cref="CustomRole"/> to sync with player. </param>
@@ -637,7 +720,7 @@ namespace Exiled.CustomRoles.API.Features
                     ability.AddAbility(player);
             }
 
-            if (CustomRoles.Instance!.Config.GotRoleHint.Show)
+            if (CustomRoles.Instance.Config.GotRoleHint.Show)
                 ShowMessage(player);
 
             ShowBroadcast(player);
@@ -701,7 +784,7 @@ namespace Exiled.CustomRoles.API.Features
             player.UniqueRole = string.Empty;
             player.TryRemoveCustomeRoleFriendlyFire(Name);
 
-            if (RemovalKillsPlayer)
+            if (RemovalKillsPlayer && player.Role.Type != RoleTypeId.Destroyed)
                 player.Role.Set(RoleTypeId.Spectator, spawnReason, roleSpawnFlags);
         }
 
@@ -792,8 +875,14 @@ namespace Exiled.CustomRoles.API.Features
         /// <returns>True if the role registered properly.</returns>
         internal bool TryRegister()
         {
-            if (!CustomRoles.Instance!.Config.IsEnabled)
+            if (!CustomRoles.Instance.Config.IsEnabled)
                 return false;
+
+            if (!IsEnabled)
+            {
+                Log.Debug($"Custom role {Name} is not enabled and will not be registered.");
+                return false;
+            }
 
             if (!Registered.Contains(this))
             {
@@ -877,7 +966,7 @@ namespace Exiled.CustomRoles.API.Features
             }
 
             float totalchance = 0f;
-            List<(float chance, Vector3 pos)> spawnPointPool = new(4);
+            List<(float Chance, Vector3 Pos)> spawnPointPool = new(4);
 
             void Add(Vector3 pos, float chance)
             {
@@ -970,7 +1059,7 @@ namespace Exiled.CustomRoles.API.Features
         /// Shows the spawn message to the player.
         /// </summary>
         /// <param name="player">The <see cref="Player"/> to show the message to.</param>
-        protected virtual void ShowMessage(Player player) => player.ShowHint(string.Format(CustomRoles.Instance!.Config.GotRoleHint.Content, Name, Description), CustomRoles.Instance.Config.GotRoleHint.Duration);
+        protected virtual void ShowMessage(Player player) => player.ShowHint(string.Format(CustomRoles.Instance.Config.GotRoleHint.Content, Name, Description), CustomRoles.Instance.Config.GotRoleHint.Duration);
 
         /// <summary>
         /// Shows the spawn broadcast to the player.

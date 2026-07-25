@@ -45,14 +45,14 @@ namespace Exiled.CustomRoles.API.Features.Parsers
                 }
                 catch (Exception e)
                 {
-                    Log.Warn($"Error loading types for {assembly.FullName}. It can be ignored if it's not using Exiled.CustomRoles. (Enabled Debug for more detail.)");
+                    Log.Warn($"Warning loading types for {assembly.FullName}. It can be ignored if it's not using Exiled.CustomRoles. (Enabled Debug for more detail.)");
                     Log.Debug(e);
                 }
             }
         }
 
         /// <inheritdoc />
-        public Type BaseType => typeof(CustomAbility);
+        public Type BaseType => field ??= typeof(CustomAbility);
 
         /// <inheritdoc />
         public bool TryResolve(ParsingEventBuffer buffer, out Type? suggestedType)

@@ -21,7 +21,7 @@ namespace Exiled.Events.Handlers
         /// <summary>
         /// Invoked before the ammo of an firearm are changed.
         /// </summary>
-        public static Event<ChangingAmmoEventArgs> ChangingAmmo { get; set; } = new ();
+        public static Event<ChangingAmmoEventArgs> ChangingAmmo { get; set; } = new();
 
         /// <summary>
         /// Invoked before item attachments are changed.
@@ -36,6 +36,7 @@ namespace Exiled.Events.Handlers
         /// <summary>
         /// Invoked before a keycard interacts with a door.
         /// </summary>
+        /// <seealso cref="Handlers.Player.InteractingDoor"/>
         public static Event<KeycardInteractingEventArgs> KeycardInteracting { get; set; } = new();
 
         /// <summary>

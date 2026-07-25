@@ -7,8 +7,6 @@
 
 namespace Exiled.API.Features.Items.FirearmModules.Primary
 {
-    using System;
-    using System.Collections;
     using System.Collections.Generic;
     using System.Linq;
 
@@ -60,6 +58,13 @@ namespace Exiled.API.Features.Items.FirearmModules.Primary
         {
             get => Magazine.AmmoType.GetAmmoType();
             set => CylinderModule.AmmoType = value.GetItemType();
+        }
+
+        /// <inheritdoc/>
+        public override ItemType AmmoItemType
+        {
+            get => Magazine.AmmoType;
+            set => CylinderModule.AmmoType = value;
         }
 
         /// <summary>
