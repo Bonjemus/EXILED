@@ -10,6 +10,7 @@ namespace Exiled.CustomRoles.Events
     using System.Collections.Generic;
 
     using Exiled.API.Enums;
+    using Exiled.API.Features;
     using Exiled.CustomRoles.API;
     using Exiled.CustomRoles.API.Features;
     using Exiled.Events.EventArgs.Player;
