@@ -10,7 +10,7 @@ namespace Exiled.Events.Patches.Events.Player
     using System.Collections.Generic;
     using System.Reflection.Emit;
 
-    using API.Features.Pools;
+    using Exiled.API.Features.Pools;
     using Exiled.Events.Attributes;
     using Exiled.Events.EventArgs.Player;
 
@@ -21,11 +21,11 @@ namespace Exiled.Events.Patches.Events.Player
     using static HarmonyLib.AccessTools;
 
     /// <summary>
-    /// Patches <see cref="ReservedSlot.HasReservedSlot(string)" />.
+    /// Patches <see cref="CustomLiteNetLib4MirrorTransport.HasReservedSlot(string, CentralAuthPreauthFlags)" />.
     /// Adds the <see cref="Player.ReservedSlot" /> event.
     /// </summary>
     [EventPatch(typeof(Player), nameof(Player.ReservedSlot))]
-    [HarmonyPatch(typeof(ReservedSlot), nameof(ReservedSlot.HasReservedSlot))]
+    [HarmonyPatch(typeof(CustomLiteNetLib4MirrorTransport), nameof(CustomLiteNetLib4MirrorTransport.HasReservedSlot))]
     internal static class ReservedSlotPatch
     {
         private static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions, ILGenerator generator)
