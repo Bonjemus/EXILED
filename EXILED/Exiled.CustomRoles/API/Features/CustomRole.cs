@@ -48,9 +48,6 @@ namespace Exiled.CustomRoles.API.Features
 
         private static readonly Dictionary<uint, CustomRole?> IdLookupTable = new();
 
-        // used in AddRole and InternalChangingRole
-        private static bool skipChangingCheck;
-
         /// <summary>
         /// Gets a list of all registered custom roles.
         /// </summary>
@@ -1123,10 +1120,8 @@ namespace Exiled.CustomRoles.API.Features
 
         private void OnInternalChangingRole(ChangingRoleEventArgs ev)
         {
-            if (!skipChangingCheck && ev.IsAllowed && ev.Reason != SpawnReason.Destroyed && Check(ev.Player) && ((ev.NewRole == RoleTypeId.Spectator && !KeepRoleOnDeath) || (ev.NewRole != RoleTypeId.Spectator && !KeepRoleOnChangingRole)))
-                RemoveRole(ev.Player);
-            else
-                skipChangingCheck = false;
+            if (ev.IsAllowed && ev.Reason != SpawnReason.Destroyed && Check(ev.Player) && ((ev.NewRole == RoleTypeId.Spectator && !KeepRoleOnDeath) || (ev.NewRole != RoleTypeId.Spectator && !KeepRoleOnChangingRole)))
+                RemoveRole(ev.Player, ev.Reason, ev.SpawnFlags);
         }
 
         private void OnSpawningRagdoll(SpawningRagdollEventArgs ev)

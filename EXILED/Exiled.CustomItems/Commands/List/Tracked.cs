@@ -8,7 +8,6 @@
 namespace Exiled.CustomItems.Commands.List
 {
     using System;
-    using System.Linq;
     using System.Text;
 
     using CommandSystem;
